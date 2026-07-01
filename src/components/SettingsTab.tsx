@@ -61,7 +61,7 @@ export default function SettingsTab({ onSettingsChanged }: SettingsTabProps) {
           Einstellungen
         </h2>
         <p className="text-xs text-slate-500">
-          Konfigurieren Sie den Verbindungsmodus Ihrer StockApp und verwalten Sie die Server-Synchronisation.
+          Konfigurieren Sie den Verbindungsmodus Ihres Draugar Stock-Managers und verwalten Sie die Server-Synchronisation.
         </p>
       </div>
 
@@ -180,7 +180,7 @@ export default function SettingsTab({ onSettingsChanged }: SettingsTabProps) {
 
         <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
           <p>
-            Da Sie die <strong>StockApp</strong> als mobile APK-App auf Ihrem Android-Telefon nutzen möchten,
+            Da Sie den <strong>Draugar Stock-Manager</strong> als mobile APK-App auf Ihrem Android-Telefon nutzen möchten,
             kann das APK-Frontend wie folgt mit dem Backend auf Ihrem Server kommunizieren:
           </p>
 

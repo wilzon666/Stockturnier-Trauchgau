@@ -38,11 +38,11 @@ export default function Dashboard({
               Offizielle Auswertung
             </span>
             <h1 className="mt-3 text-2xl font-bold tracking-tight md:text-3xl">
-              Willkommen bei <span className="text-cyan-300">StockApp</span>
+              Willkommen beim <span className="text-cyan-300">Draugar Stock-Manager</span>
             </h1>
             <p className="mt-1.5 text-sm text-blue-200 max-w-xl">
               Das moderne Auswertungstool für den Stocksport. Verwalten Sie Teambewerbe und Zielschiessen,
-              erfassen Sie Spielstände live und übertragen Sie diese direkt auf StockTV.
+              erfassen Sie Spielstände live.
             </p>
           </div>
 

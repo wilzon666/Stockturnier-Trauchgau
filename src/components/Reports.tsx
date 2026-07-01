@@ -157,7 +157,7 @@ export default function Reports({ activeTournament }: ReportsProps) {
                 <p className="text-xs font-bold text-slate-500 print:text-slate-700">
                   Veranstalter: {activeTournament.location} | Datum: {activeTournament.date}
                 </p>
-                <p className="text-[10px] text-slate-400 italic">Erstellt mit StockApp - Die Auswertungs-App für den Stocksport</p>
+                <p className="text-[10px] text-slate-400 italic">Erstellt mit dem Draugar Stock-Manager - Die Auswertungs-App für den Stocksport</p>
               </div>
 
               {/* REPORT TYPE 1: RESULTS LIST */}

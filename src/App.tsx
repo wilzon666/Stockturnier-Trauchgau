@@ -176,7 +176,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-base font-black tracking-tight text-slate-900 leading-tight">
-              Stock<span className="text-indigo-600">App</span> v2.0
+              Draugar <span className="text-indigo-600">Stock-Manager</span>
             </h1>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
               Stocksport Auswertung
