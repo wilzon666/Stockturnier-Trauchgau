@@ -1,0 +1,6 @@
+{
+  "name": "StockApp",
+  "description": "Auswertungs- und Live-Ergebnistabelle für Stocksport-Turniere (Teambewerb & Zielbewerb)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

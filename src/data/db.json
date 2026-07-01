@@ -1,0 +1,134 @@
+{
+  "tournaments": [
+    {
+      "id": "t1",
+      "name": "Salzburger Frühjahrs-Cup 2026",
+      "date": "2026-05-15",
+      "type": "team",
+      "location": "Eisarena Salzburg",
+      "status": "active",
+      "kehrenCount": 6,
+      "teams": [
+        { "id": "team-1", "name": "EV Altheim", "players": ["Johann Maier", "Fritz Huber", "Sepp Moser", "Klaus Gruber"] },
+        { "id": "team-2", "name": "ESC Linz", "players": ["Stefan Reiter", "Markus Lang", "Christian Wagner", "Heinz Schuster"] },
+        { "id": "team-3", "name": "EC Passau", "players": ["Michael Brandl", "Thomas Kern", "Andreas Plank", "Wolfgang Schmid"] },
+        { "id": "team-4", "name": "SV Anger", "players": ["Peter Steiner", "Franz Resch", "Alois Leitner", "Georg Huber"] },
+        { "id": "team-5", "name": "EV Wien", "players": ["Karl Nowak", "Otto Fischer", "Rudolf Weber", "Walter Berger"] }
+      ],
+      "matches": [
+        {
+          "id": "m1-1",
+          "round": 1,
+          "court": "Bahn A",
+          "teamAId": "team-1",
+          "teamBId": "team-2",
+          "teamAScore": 15,
+          "teamBScore": 9,
+          "status": "completed"
+        },
+        {
+          "id": "m1-2",
+          "round": 1,
+          "court": "Bahn B",
+          "teamAId": "team-3",
+          "teamBId": "team-4",
+          "teamAScore": 12,
+          "teamBScore": 12,
+          "status": "completed"
+        },
+        {
+          "id": "m2-1",
+          "round": 2,
+          "court": "Bahn A",
+          "teamAId": "team-1",
+          "teamBId": "team-3",
+          "teamAScore": 18,
+          "teamBScore": 6,
+          "status": "completed"
+        },
+        {
+          "id": "m2-2",
+          "round": 2,
+          "court": "Bahn B",
+          "teamAId": "team-2",
+          "teamBId": "team-5",
+          "teamAScore": 8,
+          "teamBScore": 16,
+          "status": "completed"
+        },
+        {
+          "id": "m3-1",
+          "round": 3,
+          "court": "Bahn A",
+          "teamAId": "team-4",
+          "teamBId": "team-1",
+          "teamAScore": 10,
+          "teamBScore": 14,
+          "status": "completed"
+        },
+        {
+          "id": "m3-2",
+          "round": 3,
+          "court": "Bahn B",
+          "teamAId": "team-3",
+          "teamBId": "team-5",
+          "teamAScore": null,
+          "teamBScore": null,
+          "status": "active"
+        },
+        {
+          "id": "m4-1",
+          "round": 4,
+          "court": "Bahn A",
+          "teamAId": "team-2",
+          "teamBId": "team-4",
+          "teamAScore": null,
+          "teamBScore": null,
+          "status": "planned"
+        }
+      ],
+      "targetParticipants": []
+    },
+    {
+      "id": "t2",
+      "name": "Landesmeisterschaft Zielschiessen 2026",
+      "date": "2026-06-20",
+      "type": "target",
+      "location": "Stocksporthalle Passau",
+      "status": "active",
+      "kehrenCount": 4,
+      "teams": [],
+      "matches": [],
+      "targetParticipants": [
+        {
+          "id": "p-1",
+          "playerName": "Franz Brandl",
+          "clubName": "EC Passau",
+          "scores": { "round1": 42, "round2": 36, "round3": 44, "round4": 30 },
+          "totalScore": 152
+        },
+        {
+          "id": "p-2",
+          "playerName": "Stefan Mayer",
+          "clubName": "EV Altheim",
+          "scores": { "round1": 38, "round2": 48, "round3": 40, "round4": 42 },
+          "totalScore": 168
+        },
+        {
+          "id": "p-3",
+          "playerName": "Christian Leitner",
+          "clubName": "SV Anger",
+          "scores": { "round1": 46, "round2": 32, "round3": 38, "round4": 28 },
+          "totalScore": 144
+        },
+        {
+          "id": "p-4",
+          "playerName": "Gerald Gruber",
+          "clubName": "ESC Linz",
+          "scores": { "round1": 50, "round2": 40, "round3": 46, "round4": 44 },
+          "totalScore": 180
+        }
+      ]
+    }
+  ]
+}
