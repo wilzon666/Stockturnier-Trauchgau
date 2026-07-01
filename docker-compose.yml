@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  stocksport-planner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stocksport-tournament-planner
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - APP_URL=${APP_URL:-http://localhost:3000}
+    volumes:
+      # Mount the database directory as a volume to persist tournament data
+      - stocksport-data:/app/src/data
+    restart: unless-stopped
+
+volumes:
+  stocksport-data:
