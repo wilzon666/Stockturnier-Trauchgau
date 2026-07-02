@@ -54,7 +54,7 @@ export default function Reports({ activeTournament }: ReportsProps) {
 
   return (
     <div className="space-y-6" id="reports-tab">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 bg-white p-4 rounded-xl shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 bg-white p-4 rounded-xl shadow-xs print:hidden">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Drucken & Berichte</h2>
           <p className="text-xs text-slate-500">
@@ -72,9 +72,9 @@ export default function Reports({ activeTournament }: ReportsProps) {
       </div>
 
       {/* Screen view controls (does not print) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 print:hidden">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {/* Navigation / Selection Sidebar */}
-        <div className="space-y-2">
+        <div className="space-y-2 print:hidden">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
             Verfügbare Berichte
           </h3>
@@ -124,7 +124,7 @@ export default function Reports({ activeTournament }: ReportsProps) {
         <div className="md:col-span-3 space-y-4">
           {/* Options inside preview */}
           {reportType === "courts" && (
-            <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl flex items-center gap-3 text-xs">
+            <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl flex items-center gap-3 text-xs print:hidden">
               <span className="font-semibold text-slate-500">Bahn filtern:</span>
               <select
                 value={selectedCourt}
@@ -142,7 +142,7 @@ export default function Reports({ activeTournament }: ReportsProps) {
           )}
 
           <div className="border border-slate-100 bg-white rounded-2xl p-6 shadow-xs min-h-[400px]">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-3 border-b border-slate-100 mb-6">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-3 border-b border-slate-100 mb-6 print:hidden">
               Vorschau (Layout für Papierdruck optimiert)
             </p>
 
@@ -569,6 +569,14 @@ export default function Reports({ activeTournament }: ReportsProps) {
       {/* Global Print Media styling - injected via standard react styled-jsx or inline-style */}
       <style>{`
         @media print {
+          /* Reset height and overflow of all parent containers to allow multi-page flow and prevent clipping/empty pages */
+          html, body, #root, .min-h-screen, main, .flex-1 {
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            position: static !important;
+          }
+
           body * {
             visibility: hidden;
           }
