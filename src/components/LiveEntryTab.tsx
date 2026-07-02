@@ -51,6 +51,7 @@ export default function LiveEntryTab({
   onEnterMatchScore,
   onEnterTargetScore,
 }: LiveEntryTabProps) {
+  const isLocked = activeTournament?.status === "completed";
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [selectedParticipant, setSelectedParticipant] = useState<TargetParticipant | null>(null);
 
@@ -106,6 +107,10 @@ export default function LiveEntryTab({
 
   const handleSaveMatchScore = () => {
     if (!activeTournament || !selectedMatch) return;
+    if (isLocked) {
+      alert("Dieses Turnier ist bereits beendet. Es können keine Ergebnisse mehr geändert oder eingetragen werden.");
+      return;
+    }
     onEnterMatchScore(
       activeTournament.id,
       selectedMatch.id,
@@ -164,6 +169,10 @@ export default function LiveEntryTab({
 
   const handleSaveParticipantScore = () => {
     if (!activeTournament || !selectedParticipant) return;
+    if (isLocked) {
+      alert("Dieses Turnier ist bereits beendet. Es können keine Ergebnisse mehr geändert oder eingetragen werden.");
+      return;
+    }
 
     let updatedScores = { ...selectedParticipant.scores };
     let updatedRounds = [...(selectedParticipant.rounds || [])];
@@ -669,7 +678,7 @@ export default function LiveEntryTab({
               exit={{ opacity: 0, y: 50 }}
               className="w-full max-w-sm rounded-2xl bg-slate-900 text-white p-6 shadow-2xl border border-slate-800 flex flex-col gap-4"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-cyan-400">{selectedMatch.court}</span>
                   <h3 className="font-bold text-sm tracking-tight">Ergebniseingabe Runde {selectedMatch.round}</h3>
@@ -680,7 +689,14 @@ export default function LiveEntryTab({
                 >
                   <X className="h-4.5 w-4.5" />
                 </button>
-              </div>
+               </div>
+
+              {isLocked && (
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] p-2.5 rounded-xl flex items-center gap-1.5 font-medium leading-normal">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span>Dieses Turnier ist beendet. Ergebnisse können nicht mehr geändert werden.</span>
+                </div>
+              )}
 
               {/* Special incident controls */}
               <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-3 space-y-3">
@@ -690,6 +706,7 @@ export default function LiveEntryTab({
                     <input
                       type="checkbox"
                       checked={isDQ}
+                      disabled={isLocked}
                       onChange={(e) => {
                         setIsDQ(e.target.checked);
                         if (e.target.checked) {
@@ -698,7 +715,7 @@ export default function LiveEntryTab({
                           setScoreB(0);
                         }
                       }}
-                      className="rounded text-indigo-500 border-slate-700 bg-slate-900"
+                      className="rounded text-indigo-500 border-slate-700 bg-slate-900 disabled:opacity-50"
                     />
                     <span>Disqualifikation (DQ)</span>
                   </label>
@@ -707,6 +724,7 @@ export default function LiveEntryTab({
                     <input
                       type="checkbox"
                       checked={isAbsent}
+                      disabled={isLocked}
                       onChange={(e) => {
                         setIsAbsent(e.target.checked);
                         if (e.target.checked) {
@@ -715,7 +733,7 @@ export default function LiveEntryTab({
                           setScoreB(0);
                         }
                       }}
-                      className="rounded text-indigo-500 border-slate-700 bg-slate-900"
+                      className="rounded text-indigo-500 border-slate-700 bg-slate-900 disabled:opacity-50"
                     />
                     <span>Nicht angetreten</span>
                   </label>
@@ -726,8 +744,9 @@ export default function LiveEntryTab({
                     <label className="block text-[10px] font-semibold text-slate-400 uppercase">DQ für Team:</label>
                     <select
                       value={dqTeamId}
+                      disabled={isLocked}
                       onChange={(e) => setDqTeamId(e.target.value)}
-                      className="w-full text-xs bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-rose-400"
+                      className="w-full text-xs bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-rose-400 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value={selectedMatch.teamAId}>
                         {activeTournament.teams.find((t) => t.id === selectedMatch.teamAId)?.name || "Team A"}
@@ -744,8 +763,9 @@ export default function LiveEntryTab({
                     <label className="block text-[10px] font-semibold text-slate-400 uppercase">Nicht angetreten:</label>
                     <select
                       value={absentTeamId}
+                      disabled={isLocked}
                       onChange={(e) => setAbsentTeamId(e.target.value)}
-                      className="w-full text-xs bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-slate-300"
+                      className="w-full text-xs bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value={selectedMatch.teamAId}>
                         {activeTournament.teams.find((t) => t.id === selectedMatch.teamAId)?.name || "Team A"}
@@ -767,7 +787,7 @@ export default function LiveEntryTab({
                   </p>
                   <div className="flex items-center justify-center gap-3">
                     <button
-                      disabled={isDQ || isAbsent}
+                      disabled={isDQ || isAbsent || isLocked}
                       onClick={() => setScoreA(Math.max(0, scoreA - 1))}
                       className="h-9 w-9 rounded-full bg-slate-700 text-white hover:bg-slate-600 disabled:opacity-30 flex items-center justify-center font-bold text-lg"
                     >
@@ -775,7 +795,7 @@ export default function LiveEntryTab({
                     </button>
                     <span className="font-mono font-bold text-3xl text-cyan-300 min-w-[40px]">{scoreA}</span>
                     <button
-                      disabled={isDQ || isAbsent}
+                      disabled={isDQ || isAbsent || isLocked}
                       onClick={() => setScoreA(scoreA + 1)}
                       className="h-9 w-9 rounded-full bg-slate-700 text-white hover:bg-slate-600 disabled:opacity-30 flex items-center justify-center font-bold text-lg"
                     >
@@ -787,7 +807,7 @@ export default function LiveEntryTab({
                     {[0, 3, 5, 7, 9, 11].map((val) => (
                       <button
                         key={val}
-                        disabled={isDQ || isAbsent}
+                        disabled={isDQ || isAbsent || isLocked}
                         onClick={() => setScoreA(val)}
                         className={`py-1 rounded text-[10px] font-bold font-mono transition-colors disabled:opacity-30 ${
                           scoreA === val ? "bg-cyan-500 text-slate-950" : "bg-slate-800 hover:bg-slate-700 text-slate-300"
@@ -806,7 +826,7 @@ export default function LiveEntryTab({
                   </p>
                   <div className="flex items-center justify-center gap-3">
                     <button
-                      disabled={isDQ || isAbsent}
+                      disabled={isDQ || isAbsent || isLocked}
                       onClick={() => setScoreB(Math.max(0, scoreB - 1))}
                       className="h-9 w-9 rounded-full bg-slate-700 text-white hover:bg-slate-600 disabled:opacity-30 flex items-center justify-center font-bold text-lg"
                     >
@@ -814,7 +834,7 @@ export default function LiveEntryTab({
                     </button>
                     <span className="font-mono font-bold text-3xl text-cyan-300 min-w-[40px]">{scoreB}</span>
                     <button
-                      disabled={isDQ || isAbsent}
+                      disabled={isDQ || isAbsent || isLocked}
                       onClick={() => setScoreB(scoreB + 1)}
                       className="h-9 w-9 rounded-full bg-slate-700 text-white hover:bg-slate-600 disabled:opacity-30 flex items-center justify-center font-bold text-lg"
                     >
@@ -826,7 +846,7 @@ export default function LiveEntryTab({
                     {[0, 3, 5, 7, 9, 11].map((val) => (
                       <button
                         key={val}
-                        disabled={isDQ || isAbsent}
+                        disabled={isDQ || isAbsent || isLocked}
                         onClick={() => setScoreB(val)}
                         className={`py-1 rounded text-[10px] font-bold font-mono transition-colors disabled:opacity-30 ${
                           scoreB === val ? "bg-cyan-500 text-slate-950" : "bg-slate-800 hover:bg-slate-700 text-slate-300"
@@ -845,8 +865,9 @@ export default function LiveEntryTab({
                 <div className="flex gap-2">
                   <button
                     type="button"
+                    disabled={isLocked}
                     onClick={() => setMatchStatus("active")}
-                    className={`px-2.5 py-1 rounded font-bold uppercase text-[9px] tracking-wider transition-colors ${
+                    className={`px-2.5 py-1 rounded font-bold uppercase text-[9px] tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       matchStatus === "active"
                         ? "bg-rose-500 text-white font-black"
                         : "bg-slate-800 hover:bg-slate-700 text-slate-400"
@@ -856,8 +877,9 @@ export default function LiveEntryTab({
                   </button>
                   <button
                     type="button"
+                    disabled={isLocked}
                     onClick={() => setMatchStatus("completed")}
-                    className={`px-2.5 py-1 rounded font-bold uppercase text-[9px] tracking-wider transition-colors ${
+                    className={`px-2.5 py-1 rounded font-bold uppercase text-[9px] tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       matchStatus === "completed"
                         ? "bg-emerald-500 text-white"
                         : "bg-slate-800 hover:bg-slate-700 text-slate-400"
@@ -879,7 +901,8 @@ export default function LiveEntryTab({
                 <button
                   type="button"
                   onClick={handleSaveMatchScore}
-                  className="py-2 rounded-xl bg-cyan-400 text-slate-950 text-xs font-bold hover:bg-cyan-300 shadow-md shadow-cyan-400/15"
+                  disabled={isLocked}
+                  className="py-2 rounded-xl bg-cyan-400 text-slate-950 text-xs font-bold hover:bg-cyan-300 shadow-md shadow-cyan-400/15 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Speichern
                 </button>
@@ -911,6 +934,13 @@ export default function LiveEntryTab({
                   <X className="h-4.5 w-4.5" />
                 </button>
               </div>
+
+              {isLocked && (
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] p-2.5 rounded-xl flex items-center gap-1.5 font-medium leading-normal">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span>Dieses Turnier ist beendet. Ergebnisse können nicht mehr geändert werden.</span>
+                </div>
+              )}
 
               {/* ACTIVE ROUND SELECTOR */}
               <div className="bg-slate-800/40 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-3 text-xs">
@@ -946,8 +976,9 @@ export default function LiveEntryTab({
                         min={0}
                         max={50}
                         value={round1}
+                        disabled={isLocked}
                         onChange={(e) => setRound1(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))}
-                        className="w-full text-center font-mono font-bold text-lg bg-slate-950 rounded border border-slate-850 py-1 text-cyan-300 focus:outline-none"
+                        className="w-full text-center font-mono font-bold text-lg bg-slate-950 rounded border border-slate-850 py-1 text-cyan-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </div>
 
@@ -958,8 +989,9 @@ export default function LiveEntryTab({
                         min={0}
                         max={50}
                         value={round2}
+                        disabled={isLocked}
                         onChange={(e) => setRound2(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))}
-                        className="w-full text-center font-mono font-bold text-lg bg-slate-950 rounded border border-slate-850 py-1 text-cyan-300 focus:outline-none"
+                        className="w-full text-center font-mono font-bold text-lg bg-slate-950 rounded border border-slate-850 py-1 text-cyan-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </div>
 
@@ -970,8 +1002,9 @@ export default function LiveEntryTab({
                         min={0}
                         max={50}
                         value={round3}
+                        disabled={isLocked}
                         onChange={(e) => setRound3(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))}
-                        className="w-full text-center font-mono font-bold text-lg bg-slate-950 rounded border border-slate-850 py-1 text-cyan-300 focus:outline-none"
+                        className="w-full text-center font-mono font-bold text-lg bg-slate-950 rounded border border-slate-850 py-1 text-cyan-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </div>
 
@@ -982,8 +1015,9 @@ export default function LiveEntryTab({
                         min={0}
                         max={50}
                         value={round4}
+                        disabled={isLocked}
                         onChange={(e) => setRound4(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))}
-                        className="w-full text-center font-mono font-bold text-lg bg-slate-950 rounded border border-slate-850 py-1 text-cyan-300 focus:outline-none"
+                        className="w-full text-center font-mono font-bold text-lg bg-slate-950 rounded border border-slate-850 py-1 text-cyan-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </div>
                   </div>
@@ -1010,26 +1044,27 @@ export default function LiveEntryTab({
                             type="text"
                             placeholder="z.B. 45.20"
                             value={da.distance}
-                            disabled={!da.isValid}
+                            disabled={!da.isValid || isLocked}
                             onChange={(e) => {
                               const updated = [...distanceAttempts];
                               updated[index].distance = e.target.value;
                               setDistanceAttempts(updated);
                             }}
-                            className="w-full text-center font-mono text-xs bg-slate-950 rounded border border-slate-800 py-1 text-amber-300 focus:outline-none"
+                            className="w-full text-center font-mono text-xs bg-slate-950 rounded border border-slate-800 py-1 text-amber-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                         </div>
                         <div className="col-span-4 flex items-center justify-end gap-1 text-[10px]">
                           <input
                             type="checkbox"
                             checked={da.isValid}
+                            disabled={isLocked}
                             onChange={(e) => {
                               const updated = [...distanceAttempts];
                               updated[index].isValid = e.target.checked;
                               if (!e.target.checked) updated[index].distance = "";
                               setDistanceAttempts(updated);
                             }}
-                            className="rounded text-amber-500 border-slate-700 bg-slate-900"
+                            className="rounded text-amber-500 border-slate-700 bg-slate-900 disabled:opacity-50"
                           />
                           <span className="text-slate-300">Gültig</span>
                         </div>
@@ -1060,12 +1095,13 @@ export default function LiveEntryTab({
                           type="number"
                           min={0}
                           value={score}
+                          disabled={isLocked}
                           onChange={(e) => {
                             const updated = [...specialOlympicsScores];
                             updated[index] = Math.max(0, parseInt(e.target.value) || 0);
                             setSpecialOlympicsScores(updated);
                           }}
-                          className="w-full text-center font-mono text-xs font-bold bg-slate-950 rounded border border-slate-800 py-1 text-purple-300 focus:outline-none"
+                          className="w-full text-center font-mono text-xs font-bold bg-slate-950 rounded border border-slate-800 py-1 text-purple-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                       </div>
                     ))}
@@ -1131,7 +1167,8 @@ export default function LiveEntryTab({
                 <button
                   type="button"
                   onClick={handleSaveParticipantScore}
-                  className="py-2 rounded-xl bg-cyan-400 text-slate-950 text-xs font-bold hover:bg-cyan-300"
+                  disabled={isLocked}
+                  className="py-2 rounded-xl bg-cyan-400 text-slate-950 text-xs font-bold hover:bg-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Speichern
                 </button>
