@@ -37,6 +37,7 @@ export default function TournamentsTab({
   activeTournament,
 }: TournamentsTabProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const isLocked = activeTournament ? activeTournament.status !== "planned" : false;
   const [name, setName] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [type, setType] = useState<"team" | "target" | "distance" | "special-olympics">("team");
@@ -99,6 +100,10 @@ export default function TournamentsTab({
   // Round robin scheduler generator with lane constraint & group splitting
   const handleGenerateSchedule = () => {
     if (!activeTournament || activeTournament.type !== "team") return;
+    if (activeTournament.status !== "planned") {
+      alert("Der Spielplan kann nicht generiert werden, da das Turnier bereits aktiv oder beendet ist.");
+      return;
+    }
     const teams = activeTournament.teams;
     if (teams.length < 2) {
       alert("Es müssen mindestens 2 Teams vorhanden sein, um einen Spielplan zu generieren.");
@@ -260,6 +265,10 @@ export default function TournamentsTab({
   // Generate Placement Matches (Platzierungsspiele) based on group standings
   const handleGeneratePlacementMatches = () => {
     if (!activeTournament || activeTournament.type !== "team" || !activeTournament.isSpecialThreeLaneMode) return;
+    if (activeTournament.status === "completed") {
+      alert("Platzierungsspiele können in einem beendeten Turnier nicht mehr generiert werden.");
+      return;
+    }
 
     const vorrundeMatches = activeTournament.matches.filter((m) => m.phase === "vorrunde" || !m.phase);
     const incomplete = vorrundeMatches.filter((m) => m.status !== "completed");
@@ -333,6 +342,10 @@ export default function TournamentsTab({
   const handleAddTeam = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeTournament || !newTeamName.trim()) return;
+    if (activeTournament.status !== "planned") {
+      alert("In einem aktiven oder beendeten Turnier können keine Teams mehr hinzugefügt werden.");
+      return;
+    }
 
     const newTeam: Team = {
       id: "team-" + Date.now(),
@@ -354,6 +367,10 @@ export default function TournamentsTab({
   // Delete Team
   const handleDeleteTeam = (teamId: string) => {
     if (!activeTournament) return;
+    if (activeTournament.status !== "planned") {
+      alert("In einem aktiven oder beendeten Turnier können keine Teams mehr gelöscht werden.");
+      return;
+    }
     const updatedTeams = activeTournament.teams.filter((t) => t.id !== teamId);
     // Also remove matches involving this team
     const updatedMatches = activeTournament.matches.filter(
@@ -369,6 +386,10 @@ export default function TournamentsTab({
   const handleAddTargetParticipant = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeTournament || !newPlayerName.trim()) return;
+    if (activeTournament.status !== "planned") {
+      alert("In einem aktiven oder beendeten Turnier können keine Teilnehmer mehr hinzugefügt werden.");
+      return;
+    }
 
     const newParticipant: TargetParticipant = {
       id: "p-" + Date.now(),
@@ -393,6 +414,10 @@ export default function TournamentsTab({
   // Delete Target Participant
   const handleDeleteTargetParticipant = (pId: string) => {
     if (!activeTournament) return;
+    if (activeTournament.status !== "planned") {
+      alert("In einem aktiven oder beendeten Turnier können keine Teilnehmer mehr gelöscht werden.");
+      return;
+    }
     const updatedParticipants = activeTournament.targetParticipants.filter(
       (p) => p.id !== pId
     );
@@ -606,7 +631,8 @@ export default function TournamentsTab({
                     <select
                       value={activeTournament.rulesVersion || "legacy3579"}
                       onChange={(e) => onUpdateTournament(activeTournament.id, { rulesVersion: e.target.value as 'ier2022' | 'legacy3579' })}
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                      disabled={isLocked}
                     >
                       <option value="legacy3579">Legacy (3/5/7/9 - Punkte, Differenz, Eigene)</option>
                       <option value="ier2022">IER 2022 (Punkte, Stocknote, Differenz, Eigene)</option>
@@ -620,7 +646,8 @@ export default function TournamentsTab({
                       placeholder="z.B. Landesverband Bayern"
                       value={activeTournament.association || ""}
                       onChange={(e) => onUpdateTournament(activeTournament.id, { association: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                      disabled={isLocked}
                     />
                   </div>
 
@@ -631,7 +658,8 @@ export default function TournamentsTab({
                       placeholder="Name des Wettbewerbsleiters"
                       value={activeTournament.competitionLeader || ""}
                       onChange={(e) => onUpdateTournament(activeTournament.id, { competitionLeader: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                      disabled={isLocked}
                     />
                   </div>
 
@@ -642,7 +670,8 @@ export default function TournamentsTab({
                       placeholder="Name des Schiedsrichters"
                       value={activeTournament.referee || ""}
                       onChange={(e) => onUpdateTournament(activeTournament.id, { referee: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                      disabled={isLocked}
                     />
                   </div>
 
@@ -653,7 +682,8 @@ export default function TournamentsTab({
                       placeholder="Name des Schriftführers"
                       value={activeTournament.clerk || ""}
                       onChange={(e) => onUpdateTournament(activeTournament.id, { clerk: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                      disabled={isLocked}
                     />
                   </div>
 
@@ -664,7 +694,8 @@ export default function TournamentsTab({
                       placeholder="https://example.com/logo.png oder Base64"
                       value={activeTournament.sponsorImage || ""}
                       onChange={(e) => onUpdateTournament(activeTournament.id, { sponsorImage: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                      disabled={isLocked}
                     />
                   </div>
                 </div>
@@ -691,7 +722,8 @@ export default function TournamentsTab({
                             placeholder="z.B. EV Altheim"
                             value={newTeamName}
                             onChange={(e) => setNewTeamName(e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none"
+                            disabled={isLocked}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                           />
                         </div>
 
@@ -702,7 +734,8 @@ export default function TournamentsTab({
                             placeholder="z.B. SV Altheim"
                             value={newTeamClub}
                             onChange={(e) => setNewTeamClub(e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none"
+                            disabled={isLocked}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                           />
                         </div>
 
@@ -713,14 +746,16 @@ export default function TournamentsTab({
                             placeholder="Spieler 1, Spieler 2, Spieler 3, Spieler 4"
                             value={newTeamPlayers}
                             onChange={(e) => setNewTeamPlayers(e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none"
+                            disabled={isLocked}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                           />
                           <p className="mt-1 text-[10px] text-slate-400">Geben Sie bis zu 4 Spielernamen ein.</p>
                         </div>
 
                         <button
                           type="submit"
-                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
+                          disabled={isLocked}
+                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Plus className="h-3.5 w-3.5" /> Team speichern
                         </button>
@@ -759,13 +794,14 @@ export default function TournamentsTab({
                                   </span>
                                   <select
                                     value={team.group || "Gruppe A"}
+                                    disabled={isLocked}
                                     onChange={(e) => {
                                       const updatedTeams = activeTournament.teams.map((t) =>
                                         t.id === team.id ? { ...t, group: e.target.value } : t
                                       );
                                       onUpdateTournament(activeTournament.id, { teams: updatedTeams });
                                     }}
-                                    className="text-[9px] border border-slate-200 rounded px-1 py-0.5 bg-slate-50 focus:outline-none"
+                                    className="text-[9px] border border-slate-200 rounded px-1 py-0.5 bg-slate-50 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                                   >
                                     <option value="Gruppe A">Gruppe A</option>
                                     <option value="Gruppe B">Gruppe B</option>
@@ -774,12 +810,14 @@ export default function TournamentsTab({
                               )}
                             </div>
 
-                            <button
-                              onClick={() => handleDeleteTeam(team.id)}
-                              className="p-1 text-slate-400 hover:text-rose-500 rounded hover:bg-rose-50 transition-colors shrink-0"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            {!isLocked && (
+                              <button
+                                onClick={() => handleDeleteTeam(team.id)}
+                                className="p-1 text-slate-400 hover:text-rose-500 rounded hover:bg-rose-50 transition-colors shrink-0"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         ))}
 
@@ -810,7 +848,7 @@ export default function TournamentsTab({
                       <div className="flex flex-wrap gap-2">
                         <button
                           onClick={handleGenerateSchedule}
-                          disabled={activeTournament.teams.length < 2}
+                          disabled={activeTournament.teams.length < 2 || isLocked}
                           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-50 text-indigo-600 px-4 py-2 text-xs font-semibold hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           id="btn-generate-schedule"
                         >
@@ -821,7 +859,8 @@ export default function TournamentsTab({
                         {activeTournament.isSpecialThreeLaneMode && activeTournament.matches.length > 0 && !activeTournament.matches.some((m) => m.phase === "platzierung") && (
                           <button
                             onClick={handleGeneratePlacementMatches}
-                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-purple-50 text-purple-700 px-4 py-2 text-xs font-semibold hover:bg-purple-100 transition-colors border border-purple-100 animate-pulse"
+                            disabled={activeTournament.status === "completed"}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-purple-50 text-purple-700 px-4 py-2 text-xs font-semibold hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors border border-purple-100 animate-pulse"
                             id="btn-generate-placement"
                           >
                             <Trophy className="h-3.5 w-3.5" /> Platzierungsspiele generieren
@@ -925,7 +964,8 @@ export default function TournamentsTab({
                             placeholder="z.B. Franz Huber"
                             value={newPlayerName}
                             onChange={(e) => setNewPlayerName(e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none"
+                            disabled={isLocked}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                           />
                         </div>
 
@@ -936,7 +976,8 @@ export default function TournamentsTab({
                             placeholder="z.B. EV Altheim"
                             value={newPlayerClub}
                             onChange={(e) => setNewPlayerClub(e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none"
+                            disabled={isLocked}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                           />
                         </div>
 
@@ -946,7 +987,8 @@ export default function TournamentsTab({
                             <select
                               value={newSpecialOlympicsLevel}
                               onChange={(e) => setNewSpecialOlympicsLevel(e.target.value)}
-                              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none bg-white"
+                              disabled={isLocked}
+                              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                             >
                               <option value="Level I">Level I (Individual Skills)</option>
                               <option value="Level II">Level II</option>
@@ -959,7 +1001,8 @@ export default function TournamentsTab({
 
                         <button
                           type="submit"
-                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 animate-none"
+                          disabled={isLocked}
+                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed animate-none"
                         >
                           <Plus className="h-3.5 w-3.5" /> Spieler speichern
                         </button>
@@ -997,12 +1040,14 @@ export default function TournamentsTab({
                               <span className="font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
                                 {participant.totalScore} Pkt.
                               </span>
-                              <button
-                                onClick={() => handleDeleteTargetParticipant(participant.id)}
-                                className="p-1 text-slate-400 hover:text-rose-500 rounded hover:bg-rose-50 transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              {!isLocked && (
+                                <button
+                                  onClick={() => handleDeleteTargetParticipant(participant.id)}
+                                  className="p-1 text-slate-400 hover:text-rose-500 rounded hover:bg-rose-50 transition-colors"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))}
