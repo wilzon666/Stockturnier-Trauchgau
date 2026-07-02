@@ -69,7 +69,7 @@ export default function SettingsTab({ onSettingsChanged }: SettingsTabProps) {
       <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
         <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-3">
           <Server className="h-4.5 w-4.5 text-indigo-600" />
-          Container-Backend & APK-Synchronisation
+          Container-Backend & Synchronisation
         </h3>
 
         <div className="space-y-4 text-xs">
@@ -140,7 +140,6 @@ export default function SettingsTab({ onSettingsChanged }: SettingsTabProps) {
                 </div>
                 <p className="mt-1.5 text-[10px] text-slate-400">
                   Leer lassen, um die aktuelle Host-URL zu verwenden (empfohlen für das Ausführen im Container).
-                  Für die APK geben Sie hier die öffentliche IP oder URL Ihres Servers ein.
                 </p>
               </div>
 
@@ -175,31 +174,26 @@ export default function SettingsTab({ onSettingsChanged }: SettingsTabProps) {
       <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
         <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
           <HelpCircle className="h-4.5 w-4.5 text-indigo-600" />
-          Anleitung: APK & Server verbinden
+          Anleitung: Auf anderen Geräten nutzen
         </h3>
 
         <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
           <p>
-            Da Sie den <strong>Draugar Stock-Manager</strong> als mobile APK-App auf Ihrem Android-Telefon nutzen möchten,
-            kann das APK-Frontend wie folgt mit dem Backend auf Ihrem Server kommunizieren:
+            Da dieser <strong>Draugar Stock-Manager</strong> in einem Docker-Container auf Ihrem Server läuft, können Sie die Web-GUI von jedem beliebigen Smartphone, Tablet oder Laptop im selben Netzwerk aufrufen:
           </p>
 
           <ol className="list-decimal list-inside space-y-2 pl-2">
             <li>
-              <strong>Server-Container starten:</strong> Deployen Sie diesen Full-Stack Container auf Ihrem Server
-              (er läuft auf Port <code>3000</code>).
+              <strong>IP-Adresse Ihres Servers ermitteln:</strong> Finden Sie die lokale IP-Adresse des Servers heraus, auf dem Portainer läuft (z.B. <code>192.168.1.100</code>).
             </li>
             <li>
-              <strong>IP-Adresse ermitteln:</strong> Notieren Sie sich die IP-Adresse Ihres Servers (z.B.{" "}
-              <code>192.168.1.100</code> oder Ihre Domain).
+              <strong>Browser aufrufen:</strong> Öffnen Sie auf dem Smartphone oder Tablet den Webbrowser und geben Sie die Adresse ein (z.B. <code>http://192.168.1.100:3000</code>).
             </li>
             <li>
-              <strong>APK-App verbinden:</strong> Öffnen Sie die APK auf dem Telefon, gehen Sie in dieses
-              Einstellungs-Tab und tragen Sie die Server-IP als <code>Backend Server URL</code> ein.
+              <strong>Live-Spielstände eintragen:</strong> Sie können das Smartphone jetzt direkt an der Bahn verwenden, um Spielstände live einzugeben. Alles wird sofort synchronisiert!
             </li>
             <li>
-              <strong>Verbindung testen:</strong> Klicken Sie auf "Verbindung testen". Sobald dort ein grünes
-              Häkchen erscheint, synchronisiert die App alle Daten in Echtzeit mit Ihrem Server!
+              <strong>StockTV aufrufen:</strong> Rufen Sie auf einem Smart-TV oder Laptop die TV-Ansicht auf (z.B. <code>http://192.168.1.100:3000/tv</code> bzw. über den Button oben), um die Live-Ergebnisse für Zuschauer anzuzeigen.
             </li>
           </ol>
         </div>

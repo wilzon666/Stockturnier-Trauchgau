@@ -1,4 +1,4 @@
-import { Tournament, AppSettings, Team, Match, TeamRankingRow } from "../types";
+import { Tournament, AppSettings, Team, Match, TeamRankingRow, TargetRoundScore, DistanceAttempt, SpecialOlympicsRound } from "../types";
 
 const SETTINGS_KEY = "stockapp_settings";
 const LOCAL_DB_KEY = "stockapp_local_tournaments";
@@ -197,7 +197,11 @@ export const StockAPI = {
     matchId: string,
     teamAScore: number,
     teamBScore: number,
-    status: "active" | "completed" = "completed"
+    status: "active" | "completed" = "completed",
+    isDQ?: boolean,
+    dqTeamId?: string,
+    isAbsent?: boolean,
+    absentTeamId?: string
   ): Promise<Tournament> {
     const settings = loadSettings();
     if (settings.isOfflineMode || tournamentId.startsWith("t-local-")) {
@@ -209,6 +213,10 @@ export const StockAPI = {
           match.teamAScore = teamAScore;
           match.teamBScore = teamBScore;
           match.status = status;
+          match.isDQ = isDQ;
+          match.dqTeamId = dqTeamId;
+          match.isAbsent = isAbsent;
+          match.absentTeamId = absentTeamId;
           match.timestamp = Date.now();
           saveLocalTournaments(list);
           return list[idx];
@@ -222,7 +230,7 @@ export const StockAPI = {
       const response = await fetch(`${baseUrl}/api/tournaments/${tournamentId}/matches/${matchId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamAScore, teamBScore, status }),
+        body: JSON.stringify({ teamAScore, teamBScore, status, isDQ, dqTeamId, isAbsent, absentTeamId }),
       });
       if (!response.ok) throw new Error("Could not post match score to server");
       return await response.json();
@@ -236,6 +244,10 @@ export const StockAPI = {
           match.teamAScore = teamAScore;
           match.teamBScore = teamBScore;
           match.status = status;
+          match.isDQ = isDQ;
+          match.dqTeamId = dqTeamId;
+          match.isAbsent = isAbsent;
+          match.absentTeamId = absentTeamId;
           match.timestamp = Date.now();
           saveLocalTournaments(list);
           return list[idx];
@@ -249,7 +261,12 @@ export const StockAPI = {
   async enterTargetScore(
     tournamentId: string,
     participantId: string,
-    scores: { round1?: number; round2?: number; round3?: number; round4?: number }
+    scores: { round1?: number; round2?: number; round3?: number; round4?: number },
+    rounds?: TargetRoundScore[],
+    distanceAttempts?: DistanceAttempt[],
+    specialOlympicsRounds?: SpecialOlympicsRound[],
+    specialOlympicsLevel?: string,
+    totalScore?: number
   ): Promise<Tournament> {
     const settings = loadSettings();
     if (settings.isOfflineMode || tournamentId.startsWith("t-local-")) {
@@ -259,11 +276,20 @@ export const StockAPI = {
         const participant = list[idx].targetParticipants.find((p) => p.id === participantId);
         if (participant) {
           participant.scores = { ...participant.scores, ...scores };
-          participant.totalScore =
-            (participant.scores.round1 || 0) +
-            (participant.scores.round2 || 0) +
-            (participant.scores.round3 || 0) +
-            (participant.scores.round4 || 0);
+          if (rounds) participant.rounds = rounds;
+          if (distanceAttempts) participant.distanceAttempts = distanceAttempts;
+          if (specialOlympicsRounds) participant.specialOlympicsRounds = specialOlympicsRounds;
+          if (specialOlympicsLevel) participant.specialOlympicsLevel = specialOlympicsLevel;
+          
+          if (totalScore !== undefined) {
+            participant.totalScore = totalScore;
+          } else {
+            participant.totalScore =
+              (participant.scores.round1 || 0) +
+              (participant.scores.round2 || 0) +
+              (participant.scores.round3 || 0) +
+              (participant.scores.round4 || 0);
+          }
           saveLocalTournaments(list);
           return list[idx];
         }
@@ -276,7 +302,7 @@ export const StockAPI = {
       const response = await fetch(`${baseUrl}/api/tournaments/${tournamentId}/target/${participantId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scores }),
+        body: JSON.stringify({ scores, rounds, distanceAttempts, specialOlympicsRounds, specialOlympicsLevel, totalScore }),
       });
       if (!response.ok) throw new Error("Could not post target score to server");
       return await response.json();
@@ -288,11 +314,20 @@ export const StockAPI = {
         const participant = list[idx].targetParticipants.find((p) => p.id === participantId);
         if (participant) {
           participant.scores = { ...participant.scores, ...scores };
-          participant.totalScore =
-            (participant.scores.round1 || 0) +
-            (participant.scores.round2 || 0) +
-            (participant.scores.round3 || 0) +
-            (participant.scores.round4 || 0);
+          if (rounds) participant.rounds = rounds;
+          if (distanceAttempts) participant.distanceAttempts = distanceAttempts;
+          if (specialOlympicsRounds) participant.specialOlympicsRounds = specialOlympicsRounds;
+          if (specialOlympicsLevel) participant.specialOlympicsLevel = specialOlympicsLevel;
+          
+          if (totalScore !== undefined) {
+            participant.totalScore = totalScore;
+          } else {
+            participant.totalScore =
+              (participant.scores.round1 || 0) +
+              (participant.scores.round2 || 0) +
+              (participant.scores.round3 || 0) +
+              (participant.scores.round4 || 0);
+          }
           saveLocalTournaments(list);
           return list[idx];
         }
@@ -327,8 +362,12 @@ export const StockAPI = {
   },
 };
 
-// Helper to compute team rankings using standard Stocksport rules (Points first, then Stocknote Quotient)
-export function computeTeamRankings(teams: Team[], matches: Match[]): TeamRankingRow[] {
+// Helper to compute team rankings using standard Stocksport rules
+export function computeTeamRankings(
+  teams: Team[],
+  matches: Match[],
+  rulesVersion: 'ier2022' | 'legacy3579' = 'legacy3579'
+): TeamRankingRow[] {
   const rankingMap = new Map<string, Omit<TeamRankingRow, "rank">>();
 
   // Initialize
@@ -353,7 +392,6 @@ export function computeTeamRankings(teams: Team[], matches: Match[]): TeamRankin
   // Calculate stats from matches
   matches.forEach((match) => {
     if (match.status !== "completed") return;
-    if (match.teamAScore === null || match.teamBScore === null) return;
 
     const rowA = rankingMap.get(match.teamAId);
     const rowB = rankingMap.get(match.teamBId);
@@ -362,15 +400,37 @@ export function computeTeamRankings(teams: Team[], matches: Match[]): TeamRankin
       rowA.matchesPlayed += 1;
       rowB.matchesPlayed += 1;
 
-      // Add Stock Points
-      rowA.stockPointsPositive += match.teamAScore;
-      rowA.stockPointsNegative += match.teamBScore;
+      let scoreA = match.teamAScore;
+      let scoreB = match.teamBScore;
 
-      rowB.stockPointsPositive += match.teamBScore;
-      rowB.stockPointsNegative += match.teamAScore;
+      // Handle Disqualification (DQ) or Absent (Nichtantreten)
+      if (match.isDQ || match.isAbsent) {
+        const isDQ_A = (match.isDQ && match.dqTeamId === match.teamAId) || (match.isAbsent && match.absentTeamId === match.teamAId);
+        const isDQ_B = (match.isDQ && match.dqTeamId === match.teamBId) || (match.isAbsent && match.absentTeamId === match.teamBId);
+
+        if (isDQ_A && isDQ_B) {
+          scoreA = 0;
+          scoreB = 0;
+        } else if (isDQ_A) {
+          scoreA = 0;
+          scoreB = 100;
+        } else if (isDQ_B) {
+          scoreA = 100;
+          scoreB = 0;
+        }
+      }
+
+      if (scoreA === null || scoreB === null) return;
+
+      // Add Stock Points
+      rowA.stockPointsPositive += scoreA;
+      rowA.stockPointsNegative += scoreB;
+
+      rowB.stockPointsPositive += scoreB;
+      rowB.stockPointsNegative += scoreA;
 
       // Determine match points
-      if (match.teamAScore > match.teamBScore) {
+      if (scoreA > scoreB) {
         rowA.wins += 1;
         rowA.matchPointsPositive += 2;
         rowA.matchPointsNegative += 0;
@@ -378,7 +438,7 @@ export function computeTeamRankings(teams: Team[], matches: Match[]): TeamRankin
         rowB.losses += 1;
         rowB.matchPointsPositive += 0;
         rowB.matchPointsNegative += 2;
-      } else if (match.teamAScore < match.teamBScore) {
+      } else if (scoreA < scoreB) {
         rowB.wins += 1;
         rowB.matchPointsPositive += 2;
         rowB.matchPointsNegative += 0;
@@ -416,25 +476,45 @@ export function computeTeamRankings(teams: Team[], matches: Match[]): TeamRankin
     };
   });
 
-  // Sort by:
-  // 1. Positive Match Points (Spielpunkte) descending
-  // 2. Stocknote (Quotient) descending
-  // 3. Stock Point Difference (Differenz) descending
-  // 4. Positive Stock Points descending
-  rankings.sort((a, b) => {
-    if (b.matchPointsPositive !== a.matchPointsPositive) {
-      return b.matchPointsPositive - a.matchPointsPositive;
-    }
-    if (b.stockNote !== a.stockNote) {
+  // Sort based on selected rulesVersion
+  if (rulesVersion === 'ier2022') {
+    // 1. Match Points descending
+    // 2. Stocknote Quotient descending
+    // 3. Stock Difference descending
+    // 4. Positive Stock Points descending
+    rankings.sort((a, b) => {
+      if (b.matchPointsPositive !== a.matchPointsPositive) {
+        return b.matchPointsPositive - a.matchPointsPositive;
+      }
+      if (b.stockNote !== a.stockNote) {
+        return b.stockNote - a.stockNote;
+      }
+      if (b.stockPointsDiff !== a.stockPointsDiff) {
+        return b.stockPointsDiff - a.stockPointsDiff;
+      }
+      return b.stockPointsPositive - a.stockPointsPositive;
+    });
+  } else {
+    // legacy3579 (Points, Diff, Eigene, Note)
+    // 1. Match Points descending
+    // 2. Stock Difference descending
+    // 3. Positive Stock Points descending
+    // 4. Stocknote Quotient descending
+    rankings.sort((a, b) => {
+      if (b.matchPointsPositive !== a.matchPointsPositive) {
+        return b.matchPointsPositive - a.matchPointsPositive;
+      }
+      if (b.stockPointsDiff !== a.stockPointsDiff) {
+        return b.stockPointsDiff - a.stockPointsDiff;
+      }
+      if (b.stockPointsPositive !== a.stockPointsPositive) {
+        return b.stockPointsPositive - a.stockPointsPositive;
+      }
       return b.stockNote - a.stockNote;
-    }
-    if (b.stockPointsDiff !== a.stockPointsDiff) {
-      return b.stockPointsDiff - a.stockPointsDiff;
-    }
-    return b.stockPointsPositive - a.stockPointsPositive;
-  });
+    });
+  }
 
-  // Assign Ranks (accounting for exact ties if necessary, but standard ranking index suffices)
+  // Assign Ranks
   rankings.forEach((row, index) => {
     row.rank = index + 1;
   });
@@ -455,8 +535,8 @@ export function computeSpecialTournamentRankings(tournament: Tournament): (TeamR
   const vorrundeMatches = matches.filter(m => m.phase === "vorrunde" || !m.phase);
 
   // 3. Compute group rankings
-  const rankingsA = computeTeamRankings(groupATeams, vorrundeMatches);
-  const rankingsB = computeTeamRankings(groupBTeams, vorrundeMatches);
+  const rankingsA = computeTeamRankings(groupATeams, vorrundeMatches, tournament.rulesVersion);
+  const rankingsB = computeTeamRankings(groupBTeams, vorrundeMatches, tournament.rulesVersion);
 
   // 4. Get placement matches
   const placementMatches = matches.filter(m => m.phase === "platzierung");

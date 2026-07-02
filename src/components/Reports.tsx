@@ -38,8 +38,8 @@ export default function Reports({ activeTournament }: ReportsProps) {
     ? computeSpecialTournamentRankings(activeTournament)
     : [];
 
-  // Calculate target rankings
-  const targetRankings = activeTournament.type === "target"
+  // Calculate individual rankings (Target, Distance, Special Olympics)
+  const individualRankings = activeTournament.type !== "team"
     ? [...activeTournament.targetParticipants].sort((a, b) => b.totalScore - a.totalScore)
     : [];
 
@@ -151,11 +151,11 @@ export default function Reports({ activeTournament }: ReportsProps) {
               {/* PAGE 1: REPORT HEADER */}
               <div className="text-center space-y-1 pb-6 border-b-2 border-slate-800">
                 <p className="text-[10px] font-bold tracking-widest text-indigo-600 print:text-black uppercase">
-                  Bund Österreichischer Eis- und Stocksportler | DESV (Deutscher Eisstock-Verband)
+                  {activeTournament.association || "Bund Österreichischer Eis- und Stocksportler | DESV (Deutscher Eisstock-Verband)"}
                 </p>
                 <h1 className="text-2xl font-black text-slate-900 uppercase">{activeTournament.name}</h1>
                 <p className="text-xs font-bold text-slate-500 print:text-slate-700">
-                  Veranstalter: {activeTournament.location} | Datum: {activeTournament.date}
+                  Veranstalter: {activeTournament.location} | Datum: {activeTournament.date} {activeTournament.rulesVersion ? `| Regelwerk: ${activeTournament.rulesVersion}` : ""}
                 </p>
                 <p className="text-[10px] text-slate-400 italic">Erstellt mit dem Draugar Stock-Manager - Die Auswertungs-App für den Stocksport</p>
               </div>
@@ -342,49 +342,114 @@ export default function Reports({ activeTournament }: ReportsProps) {
                       </table>
                     )
                   ) : (
-                    <table className="w-full text-xs text-left">
-                      <thead>
-                        <tr className="border-b-2 border-slate-800 font-bold uppercase text-[9px] text-slate-600">
-                          <th className="py-2 text-center w-12">Rang</th>
-                          <th className="py-2">Name des Schützen</th>
-                          <th className="py-2">Verein</th>
-                          <th className="py-2 text-center w-12">DG 1</th>
-                          <th className="py-2 text-center w-12">DG 2</th>
-                          <th className="py-2 text-center w-12">DG 3</th>
-                          <th className="py-2 text-center w-12">DG 4</th>
-                          <th className="py-2 text-center w-24 font-black text-indigo-700">Gesamtpunkte</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200">
-                        {targetRankings.map((p, idx) => (
-                          <tr key={p.id} className="hover:bg-slate-50 font-medium">
-                            <td className="py-2.5 text-center font-bold text-slate-900">{idx + 1}</td>
-                            <td className="py-2.5 font-bold">{p.playerName}</td>
-                            <td className="py-2.5">{p.clubName}</td>
-                            <td className="py-2.5 text-center font-mono">{p.scores.round1 || 0}</td>
-                            <td className="py-2.5 text-center font-mono">{p.scores.round2 || 0}</td>
-                            <td className="py-2.5 text-center font-mono">{p.scores.round3 || 0}</td>
-                            <td className="py-2.5 text-center font-mono">{p.scores.round4 || 0}</td>
-                            <td className="py-2.5 text-center font-mono font-black text-indigo-600 print:text-black text-sm">
-                              {p.totalScore}
-                            </td>
+                    activeTournament.type === "distance" ? (
+                      <table className="w-full text-xs text-left">
+                        <thead>
+                          <tr className="border-b-2 border-slate-800 font-bold uppercase text-[9px] text-slate-600">
+                            <th className="py-2 text-center w-12">Rang</th>
+                            <th className="py-2">Name des Schützen</th>
+                            <th className="py-2">Verein</th>
+                            <th className="py-2 text-center w-24">Erfasste Runden</th>
+                            <th className="py-2 text-center w-24 font-black text-indigo-700">Beste Weite (m)</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {individualRankings.map((p, idx) => (
+                            <tr key={p.id} className="hover:bg-slate-50 font-medium">
+                              <td className="py-2.5 text-center font-bold text-slate-900">{idx + 1}</td>
+                              <td className="py-2.5 font-bold">{p.playerName}</td>
+                              <td className="py-2.5">{p.clubName}</td>
+                              <td className="py-2.5 text-center font-mono">
+                                {p.distanceAttempts?.length || 0}
+                              </td>
+                              <td className="py-2.5 text-center font-mono font-black text-indigo-600 print:text-black text-sm">
+                                {p.totalScore} m
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : activeTournament.type === "special-olympics" ? (
+                      <table className="w-full text-xs text-left">
+                        <thead>
+                          <tr className="border-b-2 border-slate-800 font-bold uppercase text-[9px] text-slate-600">
+                            <th className="py-2 text-center w-12">Rang</th>
+                            <th className="py-2">Name des Schützen</th>
+                            <th className="py-2">Verein</th>
+                            <th className="py-2 text-center w-20">SO Level</th>
+                            <th className="py-2 text-center w-24">Erfasste Runden</th>
+                            <th className="py-2 text-center w-24 font-black text-indigo-700">Gesamtpunkte</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {individualRankings.map((p, idx) => (
+                            <tr key={p.id} className="hover:bg-slate-50 font-medium">
+                              <td className="py-2.5 text-center font-bold text-slate-900">{idx + 1}</td>
+                              <td className="py-2.5 font-bold">{p.playerName}</td>
+                              <td className="py-2.5">{p.clubName}</td>
+                              <td className="py-2.5 text-center">
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-100 text-purple-800 font-bold">
+                                  {p.specialOlympicsLevel || "-"}
+                                </span>
+                              </td>
+                              <td className="py-2.5 text-center font-mono">
+                                {p.specialOlympicsRounds?.length || 0}
+                              </td>
+                              <td className="py-2.5 text-center font-mono font-black text-indigo-600 print:text-black text-sm">
+                                {p.totalScore} Pkt.
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <table className="w-full text-xs text-left">
+                        <thead>
+                          <tr className="border-b-2 border-slate-800 font-bold uppercase text-[9px] text-slate-600">
+                            <th className="py-2 text-center w-12">Rang</th>
+                            <th className="py-2">Name des Schützen</th>
+                            <th className="py-2">Verein</th>
+                            <th className="py-2 text-center w-12">DG 1</th>
+                            <th className="py-2 text-center w-12">DG 2</th>
+                            <th className="py-2 text-center w-12">DG 3</th>
+                            <th className="py-2 text-center w-12">DG 4</th>
+                            <th className="py-2 text-center w-24 font-black text-indigo-700">Gesamtpunkte</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {individualRankings.map((p, idx) => (
+                            <tr key={p.id} className="hover:bg-slate-50 font-medium">
+                              <td className="py-2.5 text-center font-bold text-slate-900">{idx + 1}</td>
+                              <td className="py-2.5 font-bold">{p.playerName}</td>
+                              <td className="py-2.5">{p.clubName}</td>
+                              <td className="py-2.5 text-center font-mono">{p.scores?.round1 || 0}</td>
+                              <td className="py-2.5 text-center font-mono">{p.scores?.round2 || 0}</td>
+                              <td className="py-2.5 text-center font-mono">{p.scores?.round3 || 0}</td>
+                              <td className="py-2.5 text-center font-mono">{p.scores?.round4 || 0}</td>
+                              <td className="py-2.5 text-center font-mono font-black text-indigo-600 print:text-black text-sm">
+                                {p.totalScore}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )
                   )}
 
                   {/* Signatures for official printed sheet */}
-                  <div className="grid grid-cols-3 gap-6 pt-16 border-t border-dashed border-slate-300 text-center text-[10px] uppercase font-bold text-slate-500 mt-12">
-                    <div className="space-y-12">
+                  <div className="grid grid-cols-3 gap-6 pt-12 border-t border-dashed border-slate-300 text-center text-[10px] uppercase font-bold text-slate-500 mt-12">
+                    <div className="space-y-10">
+                      <p className="font-semibold text-slate-700 min-h-[20px]">{activeTournament.referee || "Offen"}</p>
                       <div className="border-b border-slate-400 mx-4"></div>
                       <p>Schiedsrichter</p>
                     </div>
-                    <div className="space-y-12">
+                    <div className="space-y-10">
+                      <p className="font-semibold text-slate-700 min-h-[20px]">{activeTournament.competitionLeader || "Offen"}</p>
                       <div className="border-b border-slate-400 mx-4"></div>
                       <p>Wettbewerbsleiter</p>
                     </div>
-                    <div className="space-y-12">
+                    <div className="space-y-10">
+                      <p className="font-semibold text-slate-700 min-h-[20px]">{activeTournament.clerk || "Offen"}</p>
                       <div className="border-b border-slate-400 mx-4"></div>
                       <p>Auswertung / Rechenbüro</p>
                     </div>

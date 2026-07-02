@@ -160,7 +160,10 @@ export default function Dashboard({
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => onSelectTournament(tournament.id)}
+                      onClick={() => {
+                        onSelectTournament(tournament.id);
+                        onNavigate("tournaments");
+                      }}
                       className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700"
                     >
                       <Trophy className="h-3.5 w-3.5" /> Dashboard
@@ -189,7 +192,10 @@ export default function Dashboard({
                   <div
                     key={tournament.id}
                     className="rounded-xl border border-slate-100 bg-slate-50 p-4 transition-all hover:bg-white hover:shadow-sm cursor-pointer"
-                    onClick={() => onSelectTournament(tournament.id)}
+                    onClick={() => {
+                      onSelectTournament(tournament.id);
+                      onNavigate("tournaments");
+                    }}
                   >
                     <div className="flex justify-between items-start">
                       <span className="text-[10px] font-bold text-slate-500 uppercase">
@@ -216,21 +222,20 @@ export default function Dashboard({
             Quick-Info
           </h2>
 
-          <div className="rounded-2xl border border-slate-100 bg-indigo-50/50 p-5 space-y-4">
-            <h3 className="font-bold text-indigo-900 text-sm">APK-App Modus</h3>
-            <p className="text-xs text-indigo-950 leading-relaxed">
-              Sie können dieses Frontend als APK auf Ihren Android-Geräten verwenden! Geben Sie in den{" "}
-              <strong>Einstellungen</strong> die IP-Adresse oder Host-URL Ihres Docker-Backend-Containers ein.
+          <div className="rounded-2xl border border-slate-100 bg-emerald-50/50 p-5 space-y-4">
+            <h3 className="font-bold text-emerald-900 text-sm">Web-GUI Modus</h3>
+            <p className="text-xs text-emerald-950 leading-relaxed">
+              Sie nutzen den <strong>Draugar Stock-Manager</strong> direkt als Web-Applikation im Browser. Alle Turniere und Ergebnisse werden sicher in Echtzeit auf Ihrem Server gespeichert.
             </p>
-            <div className="bg-white rounded-lg p-3 border border-indigo-100 flex items-center justify-between">
-              <span className="text-xs font-mono text-indigo-900">Backend Server</span>
-              <span className="inline-flex items-center gap-1 rounded bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-800">
-                Aktiviert
+            <div className="bg-white rounded-lg p-3 border border-emerald-100 flex items-center justify-between">
+              <span className="text-xs font-mono text-emerald-900">Daten-Speicherung</span>
+              <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                Server-Datenbank
               </span>
             </div>
             <button
               onClick={() => onNavigate("settings")}
-              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700"
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
             >
               <Settings className="h-3.5 w-3.5" /> Zu den Einstellungen
             </button>

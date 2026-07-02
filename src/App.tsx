@@ -13,7 +13,7 @@ import {
   RefreshCw,
   Play,
 } from "lucide-react";
-import { Tournament, AppSettings } from "./types";
+import { Tournament, AppSettings, TargetRoundScore, DistanceAttempt, SpecialOlympicsRound } from "./types";
 import { StockAPI, loadSettings } from "./lib/api";
 
 // Sub-components
@@ -120,10 +120,24 @@ export default function App() {
     matchId: string,
     scoreA: number,
     scoreB: number,
-    status: "active" | "completed"
+    status: "active" | "completed",
+    isDQ?: boolean,
+    dqTeamId?: string,
+    isAbsent?: boolean,
+    absentTeamId?: string
   ) => {
     try {
-      const updated = await StockAPI.enterMatchScore(tourneyId, matchId, scoreA, scoreB, status);
+      const updated = await StockAPI.enterMatchScore(
+        tourneyId,
+        matchId,
+        scoreA,
+        scoreB,
+        status,
+        isDQ,
+        dqTeamId,
+        isAbsent,
+        absentTeamId
+      );
       setTournaments((prev) => prev.map((t) => (t.id === tourneyId ? updated : t)));
     } catch (err) {
       console.error("Error saving match score", err);
@@ -133,10 +147,24 @@ export default function App() {
   const handleEnterTargetScore = async (
     tourneyId: string,
     participantId: string,
-    scores: { round1?: number; round2?: number; round3?: number; round4?: number }
+    scores: { round1?: number; round2?: number; round3?: number; round4?: number },
+    rounds?: TargetRoundScore[],
+    distanceAttempts?: DistanceAttempt[],
+    specialOlympicsRounds?: SpecialOlympicsRound[],
+    specialOlympicsLevel?: string,
+    totalScore?: number
   ) => {
     try {
-      const updated = await StockAPI.enterTargetScore(tourneyId, participantId, scores);
+      const updated = await StockAPI.enterTargetScore(
+        tourneyId,
+        participantId,
+        scores,
+        rounds,
+        distanceAttempts,
+        specialOlympicsRounds,
+        specialOlympicsLevel,
+        totalScore
+      );
       setTournaments((prev) => prev.map((t) => (t.id === tourneyId ? updated : t)));
     } catch (err) {
       console.error("Error saving target score", err);

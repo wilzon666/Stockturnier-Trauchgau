@@ -126,6 +126,10 @@ app.post("/api/tournaments/:id/matches/:matchId", (req, res) => {
   match.teamAScore = req.body.teamAScore !== undefined ? req.body.teamAScore : null;
   match.teamBScore = req.body.teamBScore !== undefined ? req.body.teamBScore : null;
   match.status = req.body.status || "completed";
+  match.isDQ = req.body.isDQ !== undefined ? req.body.isDQ : undefined;
+  match.dqTeamId = req.body.dqTeamId !== undefined ? req.body.dqTeamId : undefined;
+  match.isAbsent = req.body.isAbsent !== undefined ? req.body.isAbsent : undefined;
+  match.absentTeamId = req.body.absentTeamId !== undefined ? req.body.absentTeamId : undefined;
   match.timestamp = Date.now();
 
   saveDatabase(db);
@@ -150,6 +154,27 @@ app.post("/api/tournaments/:id/target/:participantId", (req, res) => {
       ...participant.scores,
       ...req.body.scores
     };
+  }
+
+  if (req.body.rounds) {
+    participant.rounds = req.body.rounds;
+  }
+
+  if (req.body.distanceAttempts) {
+    participant.distanceAttempts = req.body.distanceAttempts;
+  }
+
+  if (req.body.specialOlympicsAttempts) {
+    participant.specialOlympicsAttempts = req.body.specialOlympicsAttempts;
+  }
+
+  if (req.body.specialOlympicsLevel) {
+    participant.specialOlympicsLevel = req.body.specialOlympicsLevel;
+  }
+
+  if (req.body.totalScore !== undefined) {
+    participant.totalScore = req.body.totalScore;
+  } else {
     participant.totalScore =
       (participant.scores.round1 || 0) +
       (participant.scores.round2 || 0) +

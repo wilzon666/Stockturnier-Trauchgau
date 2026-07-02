@@ -14,6 +14,7 @@ import {
   Eye,
   CheckCircle,
   AlertCircle,
+  Settings,
 } from "lucide-react";
 import { Tournament, Team, TargetParticipant, Match } from "../types";
 import { computeTeamRankings } from "../lib/api";
@@ -38,11 +39,16 @@ export default function TournamentsTab({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [name, setName] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [type, setType] = useState<"team" | "target">("team");
+  const [type, setType] = useState<"team" | "target" | "distance" | "special-olympics">("team");
   const [location, setLocation] = useState("");
   const [kehrenCount, setKehrenCount] = useState(6);
   const [maxCourts, setMaxCourts] = useState(3);
   const [isSpecialThreeLaneMode, setIsSpecialThreeLaneMode] = useState(false);
+  const [rulesVersion, setRulesVersion] = useState<'ier2022' | 'legacy3579'>('legacy3579');
+  const [association, setAssociation] = useState("");
+  const [competitionLeader, setCompetitionLeader] = useState("");
+  const [referee, setReferee] = useState("");
+  const [clerk, setClerk] = useState("");
 
   // For editing details
   const [newTeamName, setNewTeamName] = useState("");
@@ -51,6 +57,7 @@ export default function TournamentsTab({
 
   const [newPlayerName, setNewPlayerName] = useState("");
   const [newPlayerClub, setNewPlayerClub] = useState("");
+  const [newSpecialOlympicsLevel, setNewSpecialOlympicsLevel] = useState("Level I");
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +72,11 @@ export default function TournamentsTab({
       kehrenCount: isSpecialThreeLaneMode ? 4 : kehrenCount,
       maxCourts,
       isSpecialThreeLaneMode,
+      rulesVersion,
+      association: association.trim() || undefined,
+      competitionLeader: competitionLeader.trim() || undefined,
+      referee: referee.trim() || undefined,
+      clerk: clerk.trim() || undefined,
       teams: [],
       matches: [],
       targetParticipants: [],
@@ -76,6 +88,11 @@ export default function TournamentsTab({
     setMaxCourts(3);
     setIsSpecialThreeLaneMode(false);
     setKehrenCount(6);
+    setRulesVersion("legacy3579");
+    setAssociation("");
+    setCompetitionLeader("");
+    setReferee("");
+    setClerk("");
     setShowCreateModal(false);
   };
 
@@ -438,16 +455,28 @@ export default function TournamentsTab({
                       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
                         tournament.type === "team"
                           ? "bg-emerald-50 text-emerald-700"
-                          : "bg-blue-50 text-blue-700"
+                          : tournament.type === "target"
+                          ? "bg-blue-50 text-blue-700"
+                          : tournament.type === "distance"
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-purple-50 text-purple-700"
                       }`}
                     >
                       {tournament.type === "team" ? (
                         <>
                           <Users className="h-2.5 w-2.5" /> Teambewerb
                         </>
-                      ) : (
+                      ) : tournament.type === "target" ? (
                         <>
                           <Target className="h-2.5 w-2.5" /> Zielbewerb
+                        </>
+                      ) : tournament.type === "distance" ? (
+                        <>
+                          <Trophy className="h-2.5 w-2.5 text-amber-600" /> Weitenbewerb
+                        </>
+                      ) : (
+                        <>
+                          <Trophy className="h-2.5 w-2.5 text-purple-600" /> Special Olympics
                         </>
                       )}
                     </span>
@@ -508,7 +537,9 @@ export default function TournamentsTab({
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono text-indigo-600 font-semibold uppercase tracking-wider">
-                      {activeTournament.type === "team" ? "Teambewerb" : "Zielbewerb"}
+                      {activeTournament.type === "team" ? "Teambewerb" :
+                       activeTournament.type === "target" ? "Zielbewerb" :
+                       activeTournament.type === "distance" ? "Weitenwettbewerb" : "Special Olympics"}
                     </span>
                     <span className="text-xs text-slate-400">•</span>
                     <span className="text-xs text-slate-500">{activeTournament.location}</span>
@@ -560,6 +591,82 @@ export default function TournamentsTab({
                   >
                     <Trash2 className="h-4.5 w-4.5" />
                   </button>
+                </div>
+              </div>
+
+              {/* TURNIER-KONFIGURATION & FUNKTIONÄRE */}
+              <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-4 space-y-3">
+                <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <Settings className="h-4 w-4 text-slate-500" />
+                  Turnier-Konfiguration & Funktionäre
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase">Regelwerk</label>
+                    <select
+                      value={activeTournament.rulesVersion || "legacy3579"}
+                      onChange={(e) => onUpdateTournament(activeTournament.id, { rulesVersion: e.target.value as 'ier2022' | 'legacy3579' })}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none"
+                    >
+                      <option value="legacy3579">Legacy (3/5/7/9 - Punkte, Differenz, Eigene)</option>
+                      <option value="ier2022">IER 2022 (Punkte, Stocknote, Differenz, Eigene)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase">Landesverband / Durchführer</label>
+                    <input
+                      type="text"
+                      placeholder="z.B. Landesverband Bayern"
+                      value={activeTournament.association || ""}
+                      onChange={(e) => onUpdateTournament(activeTournament.id, { association: e.target.value })}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase">Wettbewerbsleiter</label>
+                    <input
+                      type="text"
+                      placeholder="Name des Wettbewerbsleiters"
+                      value={activeTournament.competitionLeader || ""}
+                      onChange={(e) => onUpdateTournament(activeTournament.id, { competitionLeader: e.target.value })}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase">Schiedsrichter</label>
+                    <input
+                      type="text"
+                      placeholder="Name des Schiedsrichters"
+                      value={activeTournament.referee || ""}
+                      onChange={(e) => onUpdateTournament(activeTournament.id, { referee: e.target.value })}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase">Schriftführer / Rechenbüro</label>
+                    <input
+                      type="text"
+                      placeholder="Name des Schriftführers"
+                      value={activeTournament.clerk || ""}
+                      onChange={(e) => onUpdateTournament(activeTournament.id, { clerk: e.target.value })}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase">Sponsoren-Logo / Banner URL</label>
+                    <input
+                      type="text"
+                      placeholder="https://example.com/logo.png oder Base64"
+                      value={activeTournament.sponsorImage || ""}
+                      onChange={(e) => onUpdateTournament(activeTournament.id, { sponsorImage: e.target.value })}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -798,8 +905,8 @@ export default function TournamentsTab({
                 </div>
               )}
 
-              {/* ZIELBEWERB MANAGEMENT */}
-              {activeTournament.type === "target" && (
+              {/* ZIELBEWERB / WEITENWETTBEWERB / SPECIAL OLYMPICS MANAGEMENT */}
+              {activeTournament.type !== "team" && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Add Player form */}
@@ -833,9 +940,26 @@ export default function TournamentsTab({
                           />
                         </div>
 
+                        {activeTournament.type === "special-olympics" && (
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 uppercase">Special Olympics Level</label>
+                            <select
+                              value={newSpecialOlympicsLevel}
+                              onChange={(e) => setNewSpecialOlympicsLevel(e.target.value)}
+                              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none bg-white"
+                            >
+                              <option value="Level I">Level I (Individual Skills)</option>
+                              <option value="Level II">Level II</option>
+                              <option value="Level III">Level III</option>
+                              <option value="Level IV">Level IV</option>
+                              <option value="Level V">Level V</option>
+                            </select>
+                          </div>
+                        )}
+
                         <button
                           type="submit"
-                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
+                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 animate-none"
                         >
                           <Plus className="h-3.5 w-3.5" /> Spieler speichern
                         </button>
@@ -858,8 +982,14 @@ export default function TournamentsTab({
                               <p className="font-bold text-slate-800">
                                 {idx + 1}. {participant.playerName}
                               </p>
-                              <p className="text-[10px] text-slate-400">
-                                {participant.clubName}
+                              <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                                <span>{participant.clubName}</span>
+                                {participant.specialOlympicsLevel && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-purple-600 font-semibold">{participant.specialOlympicsLevel}</span>
+                                  </>
+                                )}
                               </p>
                             </div>
 
@@ -941,11 +1071,13 @@ export default function TournamentsTab({
                     <label className="block font-semibold text-slate-500 uppercase">Bewerb-Typ *</label>
                     <select
                       value={type}
-                      onChange={(e) => setType(e.target.value as "team" | "target")}
+                      onChange={(e) => setType(e.target.value as any)}
                       className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none bg-white"
                     >
                       <option value="team">Teambewerb</option>
                       <option value="target">Zielbewerb</option>
+                      <option value="distance">Weitenwettbewerb</option>
+                      <option value="special-olympics">Special Olympics</option>
                     </select>
                   </div>
 
@@ -970,6 +1102,64 @@ export default function TournamentsTab({
                     onChange={(e) => setLocation(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-500 uppercase">Regelwerk</label>
+                    <select
+                      value={rulesVersion}
+                      onChange={(e) => setRulesVersion(e.target.value as any)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none bg-white"
+                    >
+                      <option value="legacy3579">Legacy (3/5/7/9)</option>
+                      <option value="ier2022">IER 2022 (Quotient)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-500 uppercase">Landesverband</label>
+                    <input
+                      type="text"
+                      placeholder="z.B. LV Bayern"
+                      value={association}
+                      onChange={(e) => setAssociation(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block font-semibold text-slate-500 uppercase text-[9px]">Wettbewerbsleiter</label>
+                    <input
+                      type="text"
+                      placeholder="Name"
+                      value={competitionLeader}
+                      onChange={(e) => setCompetitionLeader(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-500 uppercase text-[9px]">Schiedsrichter</label>
+                    <input
+                      type="text"
+                      placeholder="Name"
+                      value={referee}
+                      onChange={(e) => setReferee(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-500 uppercase text-[9px]">Schriftführer</label>
+                    <input
+                      type="text"
+                      placeholder="Name"
+                      value={clerk}
+                      onChange={(e) => setClerk(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
 
                 {type === "team" && (
