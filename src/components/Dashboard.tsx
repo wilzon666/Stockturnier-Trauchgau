@@ -15,9 +15,9 @@ export default function Dashboard({
   onSelectTournament,
   onNavigate,
 }: DashboardProps) {
-  const activeTournaments = tournaments.filter((t) => t.status === "active");
-  const plannedTournaments = tournaments.filter((t) => t.status === "planned");
-  const completedTournaments = tournaments.filter((t) => t.status === "completed");
+  const activeTournaments = tournaments.filter((t) => t.status === "active" && !t.archived);
+  const plannedTournaments = tournaments.filter((t) => t.status === "planned" && !t.archived);
+  const completedTournaments = tournaments.filter((t) => t.status === "completed" && !t.archived);
 
   return (
     <div className="space-y-6" id="dashboard-tab">

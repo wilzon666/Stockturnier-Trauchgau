@@ -92,7 +92,7 @@ export default function LiveEntryTab({
   const [filterCourt, setFilterCourt] = useState<string>(""); // empty means all courts
   const [filterPhase, setFilterPhase] = useState<string>(""); // empty means all, 'vorrunde', 'platzierung'
 
-  const activeTournaments = tournaments.filter((t) => t.status === "active");
+  const activeTournaments = tournaments.filter((t) => t.status === "active" && !t.archived);
 
   const handleOpenMatchScore = (match: Match) => {
     setSelectedMatch(match);

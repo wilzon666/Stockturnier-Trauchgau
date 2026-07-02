@@ -98,6 +98,7 @@ export interface Tournament {
   sponsorImage?: string; // Base64 or URL
   headerImage?: string; // Base64 or URL
   logoImage?: string; // Base64 or URL
+  archived?: boolean;
 }
 
 export interface AppSettings {

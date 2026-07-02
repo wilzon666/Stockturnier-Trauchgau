@@ -37,7 +37,22 @@ export default function TournamentsTab({
   activeTournament,
 }: TournamentsTabProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const isLocked = activeTournament ? activeTournament.status !== "planned" : false;
+  const [listTab, setListTab] = useState<"active" | "archived">("active");
+  const [confirmAction, setConfirmAction] = useState<{
+    type: "archive" | "delete";
+    tournamentId: string;
+    tournamentName: string;
+  } | null>(null);
+  
+  const filteredTournaments = tournaments.filter((t) => {
+    if (listTab === "active") {
+      return !t.archived;
+    } else {
+      return !!t.archived;
+    }
+  });
+
+  const isLocked = activeTournament ? (activeTournament.status !== "planned" || !!activeTournament.archived) : false;
   const [name, setName] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [type, setType] = useState<"team" | "target" | "distance" | "special-olympics">("team");
@@ -432,6 +447,17 @@ export default function TournamentsTab({
     onUpdateTournament(activeTournament.id, { status });
   };
 
+  const handleListTabChange = (newTab: "active" | "archived") => {
+    setListTab(newTab);
+    const newFiltered = tournaments.filter(t => newTab === "active" ? !t.archived : !!t.archived);
+    if (newFiltered.length > 0) {
+      const isCurrentInNewList = newFiltered.some(t => t.id === activeTournament?.id);
+      if (!isCurrentInNewList) {
+        onSelectTournament(newFiltered[0].id);
+      }
+    }
+  };
+
   return (
     <div className="space-y-6" id="tournaments-tab">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -457,12 +483,31 @@ export default function TournamentsTab({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Tournament List */}
         <div className="space-y-3">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-            Turniere ({tournaments.length})
-          </h3>
+          <div className="flex bg-slate-100 p-1 rounded-xl">
+            <button
+              onClick={() => handleListTabChange("active")}
+              className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-lg transition-all ${
+                listTab === "active"
+                  ? "bg-white text-slate-800 shadow-xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Aktiv ({tournaments.filter((t) => !t.archived).length})
+            </button>
+            <button
+              onClick={() => handleListTabChange("archived")}
+              className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-lg transition-all ${
+                listTab === "archived"
+                  ? "bg-white text-slate-800 shadow-xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Archiv ({tournaments.filter((t) => !!t.archived).length})
+            </button>
+          </div>
 
           <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1" id="tournaments-sidebar-list">
-            {tournaments.map((tournament) => {
+            {filteredTournaments.map((tournament) => {
               const isActive = activeTournament?.id === tournament.id;
               return (
                 <div
@@ -539,9 +584,9 @@ export default function TournamentsTab({
               );
             })}
 
-            {tournaments.length === 0 && (
+            {filteredTournaments.length === 0 && (
               <div className="text-center py-8 text-slate-400 border border-dashed rounded-xl">
-                Keine Turniere vorhanden
+                {listTab === "active" ? "Keine aktiven Turniere vorhanden" : "Das Archiv ist leer"}
               </div>
             )}
           </div>
@@ -557,6 +602,34 @@ export default function TournamentsTab({
               className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-6"
               id="tournament-detail-panel"
             >
+              {/* Archive Banner */}
+              {activeTournament.archived && (
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-800 text-xs p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 font-medium">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+                    <span>Dieses Turnier befindet sich im Archiv. Sie können es wiederherstellen oder endgültig löschen.</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => onUpdateTournament(activeTournament.id, { archived: false })}
+                      className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition-colors"
+                    >
+                      Wiederherstellen
+                    </button>
+                    <button
+                      onClick={() => setConfirmAction({
+                        type: "delete",
+                        tournamentId: activeTournament.id,
+                        tournamentName: activeTournament.name,
+                      })}
+                      className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-colors"
+                    >
+                      Endgültig löschen
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Header Info */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
                 <div className="space-y-1">
@@ -579,7 +652,8 @@ export default function TournamentsTab({
                       activeTournament.status === "planned"
                         ? "bg-indigo-600 text-white"
                         : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                    }`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    disabled={activeTournament.archived}
                   >
                     Geplant
                   </button>
@@ -589,7 +663,8 @@ export default function TournamentsTab({
                       activeTournament.status === "active"
                         ? "bg-rose-500 text-white"
                         : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                    }`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    disabled={activeTournament.archived}
                   >
                     <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse"></span>
                     Aktiv / Live
@@ -600,22 +675,37 @@ export default function TournamentsTab({
                       activeTournament.status === "completed"
                         ? "bg-slate-700 text-white"
                         : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                    }`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    disabled={activeTournament.archived}
                   >
                     Beendet
                   </button>
 
-                  <button
-                    onClick={() => {
-                      if (confirm("Möchten Sie dieses Turnier wirklich dauerhaft löschen?")) {
-                        onDeleteTournament(activeTournament.id);
-                      }
-                    }}
-                    className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors ml-2"
-                    title="Turnier löschen"
-                  >
-                    <Trash2 className="h-4.5 w-4.5" />
-                  </button>
+                  {!activeTournament.archived ? (
+                    <button
+                      onClick={() => setConfirmAction({
+                        type: "archive",
+                        tournamentId: activeTournament.id,
+                        tournamentName: activeTournament.name,
+                      })}
+                      className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors ml-2"
+                      title="In Archiv verschieben"
+                    >
+                      <Trash2 className="h-4.5 w-4.5" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmAction({
+                        type: "delete",
+                        tournamentId: activeTournament.id,
+                        tournamentName: activeTournament.name,
+                      })}
+                      className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors ml-2"
+                      title="Endgültig löschen"
+                    >
+                      <Trash2 className="h-4.5 w-4.5" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1265,6 +1355,72 @@ export default function TournamentsTab({
                   <Trophy className="h-4 w-4" /> Turnier anlegen
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* CUSTOM CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {confirmAction && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl border border-slate-100 space-y-4"
+            >
+              <div className="flex items-start gap-3">
+                <div className={`p-2.5 rounded-xl shrink-0 ${
+                  confirmAction.type === "delete" 
+                    ? "bg-rose-50 text-rose-600" 
+                    : "bg-amber-50 text-amber-600"
+                }`}>
+                  {confirmAction.type === "delete" ? (
+                    <Trash2 className="h-6 w-6" />
+                  ) : (
+                    <AlertCircle className="h-6 w-6" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm">
+                    {confirmAction.type === "delete" ? "Turnier unwiderruflich löschen?" : "Turnier archivieren?"}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {confirmAction.type === "delete" 
+                      ? `Sind Sie sicher, dass Sie das Turnier "${confirmAction.tournamentName}" endgültig und unwiderruflich löschen möchten? Alle zugehörigen Spieldaten gehen verloren.`
+                      : `Möchten Sie das Turnier "${confirmAction.tournamentName}" archivieren? Es kann im Archiv wiedergefunden und wiederhergestellt werden.`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmAction(null)}
+                  className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirmAction.type === "delete") {
+                      onDeleteTournament(confirmAction.tournamentId);
+                    } else if (confirmAction.type === "archive") {
+                      onUpdateTournament(confirmAction.tournamentId, { archived: true });
+                    }
+                    setConfirmAction(null);
+                  }}
+                  className={`px-3.5 py-2 rounded-lg text-white text-xs font-bold transition-colors ${
+                    confirmAction.type === "delete"
+                      ? "bg-rose-600 hover:bg-rose-700"
+                      : "bg-amber-600 hover:bg-amber-700"
+                  }`}
+                >
+                  {confirmAction.type === "delete" ? "Endgültig löschen" : "Archivieren"}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

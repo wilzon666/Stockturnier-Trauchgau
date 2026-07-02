@@ -83,8 +83,8 @@ export default function App() {
   // Selected tournament getter
   const activeTournament =
     tournaments.find((t) => t.id === activeTournamentId) ||
-    tournaments.find((t) => t.status === "active") ||
-    tournaments[0] ||
+    tournaments.find((t) => t.status === "active" && !t.archived) ||
+    tournaments.find((t) => !t.archived) ||
     null;
 
   // Sync selected ID when activeTournament changes
