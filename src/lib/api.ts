@@ -191,6 +191,33 @@ export const StockAPI = {
     }
   },
 
+  // Cache sponsor image on server
+  async cacheSponsorImage(id: string, imageUrl: string): Promise<{ success: boolean; cachedUrl: string; tournament: Tournament }> {
+    const settings = loadSettings();
+    if (settings.isOfflineMode || id.startsWith("t-local-")) {
+      // In offline mode, keep the original image URL / base64 without saving it on server disk
+      const list = getLocalTournaments();
+      const idx = list.findIndex((t) => t.id === id);
+      if (idx !== -1) {
+        list[idx].sponsorImage = imageUrl;
+        saveLocalTournaments(list);
+        return { success: true, cachedUrl: imageUrl, tournament: list[idx] };
+      }
+      throw new Error("Tournament not found");
+    }
+
+    const baseUrl = this.getBaseUrl();
+    const response = await fetch(`${baseUrl}/api/tournaments/${id}/cache-sponsor`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageUrl }),
+    });
+    if (!response.ok) {
+      throw new Error("Sponsor image caching failed on server");
+    }
+    return await response.json();
+  },
+
   // Enter match score
   async enterMatchScore(
     tournamentId: string,

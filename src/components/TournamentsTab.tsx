@@ -17,7 +17,7 @@ import {
   Settings,
 } from "lucide-react";
 import { Tournament, Team, TargetParticipant, Match } from "../types";
-import { computeTeamRankings } from "../lib/api";
+import { computeTeamRankings, StockAPI } from "../lib/api";
 
 interface TournamentsTabProps {
   tournaments: Tournament[];
@@ -65,6 +65,31 @@ export default function TournamentsTab({
   const [competitionLeader, setCompetitionLeader] = useState("");
   const [referee, setReferee] = useState("");
   const [clerk, setClerk] = useState("");
+
+  // Caching sponsor logo state
+  const [cachingSponsor, setCachingSponsor] = useState(false);
+  const [cacheError, setCacheError] = useState<string | null>(null);
+  const [cacheSuccess, setCacheSuccess] = useState(false);
+
+  const handleCacheSponsorImage = async () => {
+    if (!activeTournament || !activeTournament.sponsorImage) return;
+    setCachingSponsor(true);
+    setCacheError(null);
+    setCacheSuccess(false);
+    try {
+      const res = await StockAPI.cacheSponsorImage(activeTournament.id, activeTournament.sponsorImage);
+      if (res.success) {
+        setCacheSuccess(true);
+        onUpdateTournament(activeTournament.id, { sponsorImage: res.cachedUrl });
+        setTimeout(() => setCacheSuccess(false), 4000);
+      }
+    } catch (err: any) {
+      console.error("Failed to cache sponsor image", err);
+      setCacheError(err.message || "Fehler beim Herunterladen des Bildes.");
+    } finally {
+      setCachingSponsor(false);
+    }
+  };
 
   // For editing details
   const [newTeamName, setNewTeamName] = useState("");
@@ -779,14 +804,88 @@ export default function TournamentsTab({
 
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase">Sponsoren-Logo / Banner URL</label>
-                    <input
-                      type="text"
-                      placeholder="https://example.com/logo.png oder Base64"
-                      value={activeTournament.sponsorImage || ""}
-                      onChange={(e) => onUpdateTournament(activeTournament.id, { sponsorImage: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-                      disabled={isLocked}
-                    />
+                    <div className="flex gap-2 mt-1">
+                      <input
+                        type="text"
+                        placeholder="https://example.com/logo.png oder Base64"
+                        value={activeTournament.sponsorImage || ""}
+                        onChange={(e) => onUpdateTournament(activeTournament.id, { sponsorImage: e.target.value })}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs focus:border-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                        disabled={isLocked || cachingSponsor}
+                      />
+                      {activeTournament.sponsorImage && (
+                        <button
+                          type="button"
+                          onClick={handleCacheSponsorImage}
+                          disabled={cachingSponsor || isLocked}
+                          className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 text-white text-xs font-bold transition-all shrink-0 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                        >
+                          {cachingSponsor ? (
+                            <>
+                              <span className="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                              Cachen...
+                            </>
+                          ) : (
+                            "Lokal cachen"
+                          )}
+                        </button>
+                      )}
+                    </div>
+                    {/* STATUS & PREVIEW BOX */}
+                    {activeTournament.sponsorImage && (
+                      <div className="mt-2 p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-2.5">
+                        <div className="flex items-center justify-between text-[10px] font-bold">
+                          {activeTournament.sponsorImage.startsWith("/cached-images/") ? (
+                            <span className="text-emerald-600 flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              ✓ Erfolgreich lokal auf Server gecacht
+                            </span>
+                          ) : (
+                            <span className="text-amber-600 flex items-center gap-1">
+                              ⚠️ Externes Bild (Klicken Sie auf 'Lokal cachen' zum Speichern)
+                            </span>
+                          )}
+                          <span className="text-slate-400 font-mono">
+                            {activeTournament.sponsorImage.startsWith("/cached-images/") ? "Lokaler Pfad" : "Externer Pfad"}
+                          </span>
+                        </div>
+
+                        {cacheError && (
+                          <p className="text-[10px] text-rose-500 font-bold bg-rose-50 p-2 rounded-lg">
+                            {cacheError}
+                          </p>
+                        )}
+
+                        {cacheSuccess && (
+                          <p className="text-[10px] text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg">
+                            ✓ Bild wurde erfolgreich heruntergeladen und lokal im Projektordner gespeichert!
+                          </p>
+                        )}
+
+                        {/* Visual Image Preview */}
+                        <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-100">
+                          <div className="h-14 w-24 shrink-0 bg-slate-50 rounded-md border border-slate-100 flex items-center justify-center overflow-hidden">
+                            <img
+                              src={activeTournament.sponsorImage.startsWith("/cached-images/") ? `${StockAPI.getBaseUrl()}${activeTournament.sponsorImage}` : activeTournament.sponsorImage}
+                              alt="Sponsoren Logo"
+                              className="max-h-full max-w-full object-contain"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = "none";
+                              }}
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-bold text-slate-500 truncate" title={activeTournament.sponsorImage}>
+                              {activeTournament.sponsorImage}
+                            </p>
+                            <p className="text-[9px] text-slate-400 mt-0.5">
+                              Dieses Bild wird auf offiziellen Berichten, Ergebnislisten und Schiedsrichter-Wertungskarten im Kopfbereich gedruckt.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

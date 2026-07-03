@@ -149,15 +149,27 @@ export default function Reports({ activeTournament }: ReportsProps) {
             {/* PRINT WRAPPER */}
             <div className="print-area bg-white text-slate-900 leading-normal font-sans" id="printable-report">
               {/* PAGE 1: REPORT HEADER */}
-              <div className="text-center space-y-1 pb-6 border-b-2 border-slate-800">
-                <p className="text-[10px] font-bold tracking-widest text-indigo-600 print:text-black uppercase">
-                  {activeTournament.association || "Bund Österreichischer Eis- und Stocksportler | DESV (Deutscher Eisstock-Verband)"}
-                </p>
-                <h1 className="text-2xl font-black text-slate-900 uppercase">{activeTournament.name}</h1>
-                <p className="text-xs font-bold text-slate-500 print:text-slate-700">
-                  Veranstalter: {activeTournament.location} | Datum: {activeTournament.date} {activeTournament.rulesVersion ? `| Regelwerk: ${activeTournament.rulesVersion}` : ""}
-                </p>
-                <p className="text-[10px] text-slate-400 italic">Erstellt mit dem Draugar Stock-Manager - Die Auswertungs-App für den Stocksport</p>
+              <div className="text-center pb-6 border-b-2 border-slate-800 space-y-4">
+                {activeTournament.sponsorImage && (
+                  <div className="flex justify-center max-h-24 print:max-h-20">
+                    <img
+                      src={activeTournament.sponsorImage}
+                      alt="Sponsor Logo"
+                      className="max-h-24 print:max-h-20 object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold tracking-widest text-indigo-600 print:text-black uppercase">
+                    {activeTournament.association || "Bund Österreichischer Eis- und Stocksportler | DESV (Deutscher Eisstock-Verband)"}
+                  </p>
+                  <h1 className="text-2xl font-black text-slate-900 uppercase">{activeTournament.name}</h1>
+                  <p className="text-xs font-bold text-slate-500 print:text-slate-700">
+                    Veranstalter: {activeTournament.location} | Datum: {activeTournament.date} {activeTournament.rulesVersion ? `| Regelwerk: ${activeTournament.rulesVersion}` : ""}
+                  </p>
+                  <p className="text-[10px] text-slate-400 italic">Erstellt mit dem Draugar Stock-Manager - Die Auswertungs-App für den Stocksport</p>
+                </div>
               </div>
 
               {/* REPORT TYPE 1: RESULTS LIST */}

@@ -9,6 +9,15 @@ const PORT = 3000;
 
 app.use(express.json());
 
+// Ensure public/cache directory exists for sponsor images caching
+const cacheDir = path.join(process.cwd(), "public", "cache");
+if (!fs.existsSync(cacheDir)) {
+  fs.mkdirSync(cacheDir, { recursive: true });
+}
+
+// Serve cached images directly
+app.use("/cached-images", express.static(cacheDir));
+
 // Path to JSON file database
 const dbDir = path.join(process.cwd(), "src", "data");
 const dbPath = path.join(dbDir, "db.json");
@@ -108,6 +117,87 @@ app.put("/api/tournaments/:id", (req, res) => {
   db.tournaments[index] = updatedTournament;
   saveDatabase(db);
   res.json(updatedTournament);
+});
+
+// POST cache sponsor image
+app.post("/api/tournaments/:id/cache-sponsor", async (req, res) => {
+  const { imageUrl } = req.body;
+  const { id } = req.params;
+
+  if (!imageUrl) {
+    return res.status(400).json({ error: "No imageUrl provided" });
+  }
+
+  try {
+    let buffer: Buffer;
+    let ext = "png";
+
+    if (imageUrl.startsWith("data:")) {
+      // Base64 URI
+      const matches = imageUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (!matches || matches.length !== 3) {
+        return res.status(400).json({ error: "Invalid base64 image data" });
+      }
+      const mimeType = matches[1];
+      const base64Data = matches[2];
+      buffer = Buffer.from(base64Data, "base64");
+
+      if (mimeType.includes("jpeg") || mimeType.includes("jpg")) {
+        ext = "jpg";
+      } else if (mimeType.includes("svg")) {
+        ext = "svg";
+      } else if (mimeType.includes("webp")) {
+        ext = "webp";
+      } else if (mimeType.includes("gif")) {
+        ext = "gif";
+      }
+    } else {
+      // Remote URL - use native global fetch (Node 18+)
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      }
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("jpeg") || contentType.includes("jpg")) {
+        ext = "jpg";
+      } else if (contentType.includes("svg")) {
+        ext = "svg";
+      } else if (contentType.includes("webp")) {
+        ext = "webp";
+      } else if (contentType.includes("gif")) {
+        ext = "gif";
+      }
+      buffer = Buffer.from(await response.arrayBuffer());
+    }
+
+    const cacheDir = path.join(process.cwd(), "public", "cache");
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+
+    const filename = `sponsor_${id}.${ext}`;
+    const filePath = path.join(cacheDir, filename);
+    fs.writeFileSync(filePath, buffer);
+
+    const db = loadDatabase();
+    const index = db.tournaments.findIndex((t: Tournament) => t.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: "Tournament not found" });
+    }
+
+    const cachedPath = `/cached-images/${filename}`;
+    db.tournaments[index].sponsorImage = cachedPath;
+    saveDatabase(db);
+
+    res.json({
+      success: true,
+      cachedUrl: cachedPath,
+      tournament: db.tournaments[index]
+    });
+  } catch (error: any) {
+    console.error("Error caching sponsor image:", error);
+    res.status(500).json({ error: `Image caching failed: ${error.message}` });
+  }
 });
 
 // POST enter match score for Team tournament
