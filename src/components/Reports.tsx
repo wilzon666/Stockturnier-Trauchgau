@@ -162,7 +162,7 @@ export default function Reports({ activeTournament }: ReportsProps) {
                 )}
                 <div className="space-y-1">
                   <p className="text-[10px] font-bold tracking-widest text-indigo-600 print:text-black uppercase">
-                    {activeTournament.association || "Bund Österreichischer Eis- und Stocksportler | DESV (Deutscher Eisstock-Verband)"}
+                    {activeTournament.association || "TSV Trauchgau e.V. - Abteilung Eisstock"}
                   </p>
                   <h1 className="text-2xl font-black text-slate-900 uppercase">{activeTournament.name}</h1>
                   <p className="text-xs font-bold text-slate-500 print:text-slate-700">
