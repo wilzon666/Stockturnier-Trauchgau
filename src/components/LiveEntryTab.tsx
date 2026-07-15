@@ -14,6 +14,10 @@ import {
   Search,
   CheckCircle,
   AlertTriangle,
+  Info,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Tournament, Match, TargetParticipant, TargetRoundScore, DistanceAttempt, SpecialOlympicsRound } from "../types";
 
@@ -74,6 +78,20 @@ export default function LiveEntryTab({
   const [round2, setRound2] = useState<number>(0);
   const [round3, setRound3] = useState<number>(0);
   const [round4, setRound4] = useState<number>(0);
+
+  // Target attempt values (6 attempts per pass, max 10 points per attempt)
+  const [pass1Attempts, setPass1Attempts] = useState<number[]>(new Array(6).fill(0));
+  const [pass2Attempts, setPass2Attempts] = useState<number[]>(new Array(6).fill(0));
+  const [pass3Attempts, setPass3Attempts] = useState<number[]>(new Array(6).fill(0));
+  const [pass4Attempts, setPass4Attempts] = useState<number[]>(new Array(6).fill(0));
+
+  const [activePassIndex, setActivePassIndex] = useState<number>(1);
+  const [showExplanation, setShowExplanation] = useState<{ [key: number]: boolean }>({
+    1: true,
+    2: true,
+    3: true,
+    4: true,
+  });
 
   // Distance sub-round attempts (5 attempts)
   const [distanceAttempts, setDistanceAttempts] = useState<{ distance: string; isValid: boolean }[]>([
@@ -139,6 +157,12 @@ export default function LiveEntryTab({
       setRound2(foundRound?.pass2 !== undefined ? foundRound.pass2 : (roundNum === 1 ? participant.scores.round2 || 0 : 0));
       setRound3(foundRound?.pass3 !== undefined ? foundRound.pass3 : (roundNum === 1 ? participant.scores.round3 || 0 : 0));
       setRound4(foundRound?.pass4 !== undefined ? foundRound.pass4 : (roundNum === 1 ? participant.scores.round4 || 0 : 0));
+      
+      setPass1Attempts(foundRound?.pass1Attempts && foundRound.pass1Attempts.length === 6 ? foundRound.pass1Attempts : new Array(6).fill(0));
+      setPass2Attempts(foundRound?.pass2Attempts && foundRound.pass2Attempts.length === 6 ? foundRound.pass2Attempts : new Array(6).fill(0));
+      setPass3Attempts(foundRound?.pass3Attempts && foundRound.pass3Attempts.length === 6 ? foundRound.pass3Attempts : new Array(6).fill(0));
+      setPass4Attempts(foundRound?.pass4Attempts && foundRound.pass4Attempts.length === 6 ? foundRound.pass4Attempts : new Array(6).fill(0));
+      setActivePassIndex(1);
     } else if (activeTournament?.type === "distance") {
       const foundRound = participant.distanceAttempts?.find((r) => r.roundIndex === roundNum);
       if (foundRound) {
@@ -181,14 +205,23 @@ export default function LiveEntryTab({
     let computedTotalScore = 0;
 
     if (activeTournament.type === "target") {
-      const roundSum = round1 + round2 + round3 + round4;
+      const sum1 = pass1Attempts.reduce((sum, val) => sum + val, 0);
+      const sum2 = pass2Attempts.reduce((sum, val) => sum + val, 0);
+      const sum3 = pass3Attempts.reduce((sum, val) => sum + val, 0);
+      const sum4 = pass4Attempts.reduce((sum, val) => sum + val, 0);
+      const roundSum = sum1 + sum2 + sum3 + sum4;
+      
       const roundData: TargetRoundScore = {
         roundIndex: activeRoundNumber,
-        pass1: round1,
-        pass2: round2,
-        pass3: round3,
-        pass4: round4,
+        pass1: sum1,
+        pass2: sum2,
+        pass3: sum3,
+        pass4: sum4,
         total: roundSum,
+        pass1Attempts,
+        pass2Attempts,
+        pass3Attempts,
+        pass4Attempts,
       };
       const rIdx = updatedRounds.findIndex((r) => r.roundIndex === activeRoundNumber);
       if (rIdx !== -1) {
@@ -290,6 +323,93 @@ export default function LiveEntryTab({
 
     setSelectedParticipant(null);
   };
+
+  interface PassExplanationItem {
+    name: string;
+    title: string;
+    goal: string;
+    scoring: string;
+    allowedPoints: number[];
+    allowedText: string;
+    details?: { points: number; label: string }[];
+  }
+
+  const PASS_EXPLANATIONS: { [key: number]: PassExplanationItem } = {
+    1: {
+      name: "Durchgang 1",
+      title: "Maß auf die Mitte",
+      goal: "Der Spielstock muss so nah wie möglich an das Mittelkreuz (wo eine Daube liegt) gespielt werden.",
+      scoring: "Ringwertung: Die Punkte ergeben sich aus der Endlage des Stocks in den eingezeichneten Zielringen. Maßgeblich ist die Projektion des äußeren Stahlrings des Stockes. Es zählen die Ringe von außen nach innen.",
+      allowedPoints: [0, 2, 4, 6, 8, 10],
+      allowedText: "Ringwertung: [0, 2, 4, 6, 8, 10]"
+    },
+    2: {
+      name: "Durchgang 2",
+      title: "Auf Zielstöcke (Stockschießen)",
+      goal: "Schießen auf vorgegebene Zielstöcke in 6 Kreisen. Ziel ist es, den Zielstock aus dem Feld zu befördern, während der eigene Spielstock im Feld bleibt.",
+      scoring: "Ereigniswertung nach definierten Endzuständen:",
+      details: [
+        { points: 10, label: "Zielstock verlässt Feld & eigener Stock bleibt im Feld (Maximum)" },
+        { points: 5, label: "Zielstock verlässt Feld, aber eigener Stock ebenfalls weg" },
+        { points: 2, label: "Zielstock getroffen, bleibt aber im Feld" },
+        { points: 0, label: "Zielstock verfehlt oder Fehlversuch" }
+      ],
+      allowedPoints: [0, 2, 5, 10],
+      allowedText: "Ereigniswertung: [0, 2, 5, 10]"
+    },
+    3: {
+      name: "Durchgang 3",
+      title: "Maß nach hinten",
+      goal: "Ähnlich wie Durchgang 1, aber die Zielringe liegen im hinteren linken und hinteren rechten Bereich des Zielfeldes.",
+      scoring: "Ablauf: 3 Versuche in die linken Ringe (Versuch 1-3), 3 Versuche in die rechten Ringe (Versuch 4-6).",
+      allowedPoints: [0, 2, 4, 6, 8, 10],
+      allowedText: "Ringwertung: [0, 2, 4, 6, 8, 10]"
+    },
+    4: {
+      name: "Durchgang 4",
+      title: "Kombinieren",
+      goal: "Mischung aus Anstellen und Bringen. Bei einigen Versuchen den eigenen Stock in Zielringe ablenken, bei anderen den gegnerischen Stock hineinbefördern.",
+      scoring: "Wertung: Gewertet wird das Erreichen der Ringe durch den relevanten Stock am Ende des Versuchs.",
+      allowedPoints: [0, 2, 4, 6, 8, 10],
+      allowedText: "Ringwertung: [0, 2, 4, 6, 8, 10]"
+    }
+  };
+
+  const getActiveAttempts = (passIdx: number): number[] => {
+    if (passIdx === 1) return pass1Attempts;
+    if (passIdx === 2) return pass2Attempts;
+    if (passIdx === 3) return pass3Attempts;
+    return pass4Attempts;
+  };
+
+  const updateAttemptValue = (passIdx: number, attemptIdx: number, value: number) => {
+    if (passIdx === 1) {
+      const copy = [...pass1Attempts];
+      copy[attemptIdx] = value;
+      setPass1Attempts(copy);
+      setRound1(copy.reduce((sum, v) => sum + v, 0));
+    } else if (passIdx === 2) {
+      const copy = [...pass2Attempts];
+      copy[attemptIdx] = value;
+      setPass2Attempts(copy);
+      setRound2(copy.reduce((sum, v) => sum + v, 0));
+    } else if (passIdx === 3) {
+      const copy = [...pass3Attempts];
+      copy[attemptIdx] = value;
+      setPass3Attempts(copy);
+      setRound3(copy.reduce((sum, v) => sum + v, 0));
+    } else {
+      const copy = [...pass4Attempts];
+      copy[attemptIdx] = value;
+      setPass4Attempts(copy);
+      setRound4(copy.reduce((sum, v) => sum + v, 0));
+    }
+  };
+
+  const pass1Sum = pass1Attempts.reduce((sum, v) => sum + v, 0);
+  const pass2Sum = pass2Attempts.reduce((sum, v) => sum + v, 0);
+  const pass3Sum = pass3Attempts.reduce((sum, v) => sum + v, 0);
+  const pass4Sum = pass4Attempts.reduce((sum, v) => sum + v, 0);
 
   // Helpers for filtering
   const roundsList = activeTournament && activeTournament.type === "team"
@@ -963,67 +1083,217 @@ export default function LiveEntryTab({
 
               {/* TARGET TOURNAMENT SCORE ENTRY */}
               {activeTournament.type === "target" && (
-                <div className="space-y-3">
-                  <p className="text-[10px] text-slate-400">
-                    Gegenüberstellung der 4 Durchgänge für Runde {activeRoundNumber} (max. 50 Punkte je Durchgang).
-                  </p>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="p-3 bg-slate-800/30 border border-slate-800 rounded-xl space-y-1 text-center">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase">D1 Ringe</p>
-                      <input
-                        type="number"
-                        min={0}
-                        max={50}
-                        value={round1}
-                        disabled={isLocked}
-                        onChange={(e) => setRound1(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))}
-                        className="w-full text-center font-mono font-bold text-lg bg-slate-950 rounded border border-slate-850 py-1 text-cyan-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                    </div>
-
-                    <div className="p-3 bg-slate-800/30 border border-slate-800 rounded-xl space-y-1 text-center">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase">D2 Stöcke</p>
-                      <input
-                        type="number"
-                        min={0}
-                        max={50}
-                        value={round2}
-                        disabled={isLocked}
-                        onChange={(e) => setRound2(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))}
-                        className="w-full text-center font-mono font-bold text-lg bg-slate-950 rounded border border-slate-850 py-1 text-cyan-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                    </div>
-
-                    <div className="p-3 bg-slate-800/30 border border-slate-800 rounded-xl space-y-1 text-center">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase">D3 Kreis-D</p>
-                      <input
-                        type="number"
-                        min={0}
-                        max={50}
-                        value={round3}
-                        disabled={isLocked}
-                        onChange={(e) => setRound3(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))}
-                        className="w-full text-center font-mono font-bold text-lg bg-slate-950 rounded border border-slate-850 py-1 text-cyan-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                    </div>
-
-                    <div className="p-3 bg-slate-800/30 border border-slate-800 rounded-xl space-y-1 text-center">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase">D4 Kombi</p>
-                      <input
-                        type="number"
-                        min={0}
-                        max={50}
-                        value={round4}
-                        disabled={isLocked}
-                        onChange={(e) => setRound4(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))}
-                        className="w-full text-center font-mono font-bold text-lg bg-slate-950 rounded border border-slate-850 py-1 text-cyan-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                    </div>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                      Durchgänge & Versuche (Runde {activeRoundNumber})
+                    </h4>
+                    <p className="text-[10px] text-slate-500 mb-2 leading-relaxed">
+                      Jeder Durchgang besteht aus 6 Versuchen mit max. 10 Punkten pro Versuch (max. 60 Punkte pro Durchgang, maximal 240 Punkte insgesamt).
+                    </p>
                   </div>
 
-                  <div className="bg-slate-800/50 p-2.5 rounded-lg text-center text-xs text-slate-300">
-                    Runde {activeRoundNumber} Summe: <span className="font-bold font-mono text-cyan-400">{round1 + round2 + round3 + round4} Pkt.</span>
+                  {/* Durchgang Tab Selector Buttons */}
+                  <div className="grid grid-cols-2 xs:grid-cols-4 gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-850">
+                    {[1, 2, 3, 4].map((idx) => {
+                      const isActive = activePassIndex === idx;
+                      const passSum = idx === 1 ? pass1Sum : idx === 2 ? pass2Sum : idx === 3 ? pass3Sum : pass4Sum;
+                      let label = `D${idx}`;
+                      if (idx === 1) label = "D1: Maß Mitte";
+                      if (idx === 2) label = "D2: Stöcke";
+                      if (idx === 3) label = "D3: Maß hinten";
+                      if (idx === 4) label = "D4: Kombi";
+                      
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setActivePassIndex(idx)}
+                          className={`py-2 px-1 rounded-lg text-center transition-all cursor-pointer ${
+                            isActive
+                              ? "bg-indigo-600 text-white font-extrabold shadow-md ring-1 ring-indigo-500"
+                              : "text-slate-400 hover:text-white hover:bg-slate-900"
+                          }`}
+                        >
+                          <span className="block text-[9px] font-bold uppercase truncate">{label}</span>
+                          <span className="block font-mono text-xs mt-0.5 font-bold">
+                            {passSum} <span className="text-[9px] text-slate-400 font-normal">P.</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Active Pass Section */}
+                  {(() => {
+                    const passDetails = PASS_EXPLANATIONS[activePassIndex as 1 | 2 | 3 | 4];
+                    const activeAttempts = getActiveAttempts(activePassIndex);
+                    const isExplanationOpen = showExplanation[activePassIndex] !== false;
+
+                    return (
+                      <div className="space-y-4 bg-slate-900/20 p-4 rounded-xl border border-slate-800">
+                        {/* Header of Active Pass */}
+                        <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wide">Durchgang {activePassIndex}</span>
+                            <h5 className="font-extrabold text-white text-sm tracking-tight truncate">{passDetails.title}</h5>
+                          </div>
+                          
+                          {/* Explanation Toggle Button (Infotaste) */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowExplanation((prev) => ({
+                                ...prev,
+                                [activePassIndex]: !isExplanationOpen,
+                              }))
+                            }
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer shrink-0 ${
+                              isExplanationOpen
+                                ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
+                                : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
+                            }`}
+                          >
+                            <HelpCircle className="h-3.5 w-3.5" />
+                            {isExplanationOpen ? "Hilfe aus" : "Infotaste"}
+                          </button>
+                        </div>
+
+                        {/* Explanation Banner */}
+                        <AnimatePresence initial={false}>
+                          {isExplanationOpen && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="bg-slate-950/80 border border-indigo-500/10 p-3 rounded-xl space-y-2 text-xs text-slate-300">
+                                <div>
+                                  <span className="font-bold text-indigo-400 block mb-0.5">Ziel des Durchgangs:</span>
+                                  <p className="leading-relaxed text-slate-200">{passDetails.goal}</p>
+                                </div>
+                                <div>
+                                  <span className="font-bold text-indigo-400 block mb-0.5">Wertung & Punkte:</span>
+                                  <p className="leading-relaxed text-slate-200">{passDetails.scoring}</p>
+                                </div>
+                                {passDetails.details && (
+                                  <div className="bg-slate-900 p-2 rounded-lg space-y-1 text-[11px] font-mono border border-slate-850">
+                                    {passDetails.details.map((d, i) => (
+                                      <div key={i} className="flex items-start gap-1.5">
+                                        <span className="text-cyan-400 font-bold min-w-[45px] shrink-0">{d.points} Pkt:</span>
+                                        <span className="text-slate-300 font-sans leading-normal">{d.label}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="text-[10px] font-mono text-indigo-300 bg-indigo-950/20 px-2 py-0.5 rounded-lg inline-block border border-indigo-900/30">
+                                  Zulassene Punkte: {passDetails.allowedText}
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {/* List of 6 Attempts */}
+                        <div className="space-y-2 pt-1">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wide px-1">
+                            <span>Versuche (6 Würfe)</span>
+                            <span>Punkte wählen</span>
+                          </div>
+
+                          <div className="space-y-2">
+                            {activeAttempts.map((score, attemptIdx) => {
+                              // Custom text label for specific attempts
+                              let attemptLabel = `Versuch ${attemptIdx + 1}`;
+                              if (activePassIndex === 3) {
+                                attemptLabel = attemptIdx < 3 ? `V${attemptIdx + 1} (Links)` : `V${attemptIdx + 1} (Rechts)`;
+                              }
+
+                              return (
+                                <div
+                                  key={attemptIdx}
+                                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 bg-slate-950/40 rounded-xl border border-slate-850 hover:border-slate-800 transition-colors"
+                                >
+                                  <div className="flex items-center justify-between sm:justify-start gap-3">
+                                    <span className="text-xs font-bold text-slate-300 font-mono bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800">
+                                      {attemptLabel}
+                                    </span>
+                                    <span className="font-mono font-black text-cyan-400 text-sm">
+                                      {score} <span className="text-[10px] text-slate-500 font-normal">Pkt.</span>
+                                    </span>
+                                  </div>
+
+                                  {/* Selectable Point Buttons */}
+                                  <div className="flex items-center gap-1 overflow-x-auto py-0.5 scrollbar-none">
+                                    {passDetails.allowedPoints.map((pt) => {
+                                      const isSelected = score === pt;
+                                      return (
+                                        <button
+                                          key={pt}
+                                          type="button"
+                                          disabled={isLocked}
+                                          onClick={() => updateAttemptValue(activePassIndex, attemptIdx, pt)}
+                                          className={`h-7.5 min-w-[32px] px-1.5 rounded-lg text-xs font-black transition-all active:scale-95 cursor-pointer flex items-center justify-center ${
+                                            isSelected
+                                              ? "bg-cyan-500 text-slate-950 shadow-md ring-2 ring-cyan-400 font-extrabold"
+                                              : "bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-slate-200 border border-slate-800"
+                                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                        >
+                                          {pt}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Reset and sum footer */}
+                        <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 mt-1 text-xs">
+                          <button
+                            type="button"
+                            disabled={isLocked}
+                            onClick={() => {
+                              if (isLocked) return;
+                              if (confirm(`Möchten Sie alle 6 Versuche für "${passDetails.title}" auf 0 zurücksetzen?`)) {
+                                [0, 1, 2, 3, 4, 5].forEach((i) => updateAttemptValue(activePassIndex, i, 0));
+                              }
+                            }}
+                            className="text-[10px] text-rose-400 hover:text-rose-300 font-bold hover:underline transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            Durchgang zurücksetzen
+                          </button>
+
+                          <div className="font-bold text-slate-300 text-[11px] sm:text-xs">
+                            Summe D{activePassIndex}:{" "}
+                            <span className="font-mono font-black text-white text-xs sm:text-sm bg-indigo-600/20 px-2 py-1 rounded-lg border border-indigo-500/10 text-indigo-300">
+                              {activeAttempts.reduce((sum, v) => sum + v, 0)} / 60 Pkt.
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Summary of active round */}
+                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-850 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-400">
+                      <span>Runde {activeRoundNumber} Gesamtsumme:</span>
+                      <span className="font-mono text-cyan-400 text-sm">
+                        {pass1Sum + pass2Sum + pass3Sum + pass4Sum} / 240 Pkt.
+                      </span>
+                    </div>
+                    {/* Visual Progress Bar */}
+                    <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800/50">
+                      <div
+                        className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-300"
+                        style={{ width: `${Math.min(100, ((pass1Sum + pass2Sum + pass3Sum + pass4Sum) / 240) * 100)}%` }}
+                      ></div>
+                    </div>
                   </div>
                 </div>
               )}

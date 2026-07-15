@@ -36,11 +36,15 @@ export interface TargetScore {
 
 export interface TargetRoundScore {
   roundIndex: number; // 1-based, up to 16
-  pass1: number; // Max 50
-  pass2: number; // Max 50
-  pass3: number; // Max 50
-  pass4: number; // Max 50
+  pass1: number; // Max 50/60
+  pass2: number; // Max 50/60
+  pass3: number; // Max 50/60
+  pass4: number; // Max 50/60
   total: number;
+  pass1Attempts?: number[]; // 6 attempts
+  pass2Attempts?: number[]; // 6 attempts
+  pass3Attempts?: number[]; // 6 attempts
+  pass4Attempts?: number[]; // 6 attempts
 }
 
 export interface DistanceAttempt {
