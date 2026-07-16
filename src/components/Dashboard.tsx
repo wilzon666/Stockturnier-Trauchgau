@@ -1,5 +1,6 @@
-import { motion } from "motion/react";
-import { Award, Trophy, Play, Settings, Shield, Plus, Calendar, MapPin, Users, Target } from "lucide-react";
+import { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { Award, Trophy, Play, Settings, Shield, Plus, Calendar, MapPin, Users, Target, BookOpen, ExternalLink, FileText } from "lucide-react";
 import { Tournament } from "../types";
 
 interface DashboardProps {
@@ -18,6 +19,8 @@ export default function Dashboard({
   const activeTournaments = tournaments.filter((t) => t.status === "active" && !t.archived);
   const plannedTournaments = tournaments.filter((t) => t.status === "planned" && !t.archived);
   const completedTournaments = tournaments.filter((t) => t.status === "completed" && !t.archived);
+
+  const [rulesTab, setRulesTab] = useState<"team" | "target">("team");
 
   return (
     <div className="space-y-6" id="dashboard-tab">
@@ -241,28 +244,135 @@ export default function Dashboard({
             </button>
           </div>
 
-          <div className="rounded-2xl border border-slate-100 bg-white p-5 space-y-3">
-            <h3 className="font-bold text-slate-800 text-sm">Stocksport-Regelwerk</h3>
-            <div className="space-y-2.5 text-xs text-slate-600">
-              <div className="flex gap-2">
-                <span className="text-indigo-600 font-bold">•</span>
-                <p>
-                  <strong>Teambewerb:</strong> Standardmäßig 6 Kehren pro Spiel. Im 3-Bahnen Spezial-Modus wird die Vorrunde mit 4 Kehren und die Platzierungsspiele mit 6 Kehren ausgetragen. Der Gewinner erhält 2 Matchpunkte, bei unentschieden erhalten beide 1 Punkt.
-                </p>
+          <div className="rounded-2xl border border-slate-100 bg-white p-5 space-y-4 shadow-sm" id="rules-card">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-1.5">
+                <BookOpen className="h-4.5 w-4.5 text-indigo-600" />
+                <h3 className="font-bold text-slate-800 text-sm">Stocksport-Regelwerk</h3>
               </div>
-              <div className="flex gap-2">
-                <span className="text-indigo-600 font-bold">•</span>
-                <p>
-                  <strong>Stocknote:</strong> Die Quotient-Formel (Eigene Stockpunkte dividiert durch gegnerische
-                  Stockpunkte) ist das entscheidende Kriterium bei Punktegleichstand.
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-indigo-600 font-bold">•</span>
-                <p>
-                  <strong>Zielbewerb:</strong> Ein Spieler absolviert 4 Durchgänge mit jeweils unterschiedlichen
-                  Zielen (Ringe, Stöcke, Kombiniert). Max 50 Punkte pro Durchgang.
-                </p>
+              <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                IER 2022
+              </span>
+            </div>
+
+            {/* Tab Selector */}
+            <div className="flex bg-slate-100 p-1 rounded-xl">
+              <button
+                onClick={() => setRulesTab("team")}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  rulesTab === "team"
+                    ? "bg-white text-indigo-600 shadow-xs"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Teambewerb
+              </button>
+              <button
+                onClick={() => setRulesTab("target")}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  rulesTab === "target"
+                    ? "bg-white text-indigo-600 shadow-xs"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Target className="h-3.5 w-3.5" />
+                Zielbewerb
+              </button>
+            </div>
+
+            {/* Interactive Rules Content */}
+            <div className="min-h-[220px] flex flex-col justify-between">
+              <AnimatePresence mode="wait">
+                {rulesTab === "team" ? (
+                  <motion.div
+                    key="team-rules"
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 8 }}
+                    transition={{ duration: 0.15 }}
+                    className="space-y-3 text-xs text-slate-600"
+                  >
+                    <div>
+                      <h4 className="font-bold text-indigo-950 flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
+                        Ziel des Mannschaftsspiels
+                      </h4>
+                      <p className="mt-0.5 text-slate-500 leading-relaxed pl-3">
+                        Die eigenen Stöcke näher an die Daube (Zielobjekt im Zielfeld) bringen als der Gegner.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h4 className="font-bold text-indigo-950 flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
+                        Kehren & Matchpunkte
+                      </h4>
+                      <p className="mt-0.5 text-slate-500 leading-relaxed pl-3">
+                        Standardmäßig 6 Kehren. Sieg ergibt <strong>2:0</strong> Matchpunkte, Unentschieden <strong>1:1</strong>, Niederlage <strong>0:2</strong>. Im 3-Bahnen Modus spielt die Vorrunde 4 Kehren.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h4 className="font-bold text-indigo-950 flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
+                        Wertung & Stocknote
+                      </h4>
+                      <p className="mt-0.5 text-slate-500 leading-relaxed pl-3">
+                        Der bestplatzierte Stock erhält 3 Punkte, jeder weitere eigene (näher als der beste gegnerische) Stock 2 Punkte (max. 9 pro Kehre). Die <strong>Stocknote</strong> (Eigene / Gegnerische Punkte) entscheidet bei Gleichstand.
+                      </p>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="target-rules"
+                    initial={{ opacity: 0, x: 8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -8 }}
+                    transition={{ duration: 0.15 }}
+                    className="space-y-3 text-xs text-slate-600"
+                  >
+                    <p className="text-slate-500 leading-relaxed pb-1">
+                      Einzelwettbewerb aus 4 Durchgängen à 6 Schüsse (max. 50 Punkte pro Durchgang):
+                    </p>
+
+                    <div className="grid grid-cols-1 gap-2 pl-1">
+                      <div className="bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                        <span className="font-extrabold text-[10px] text-indigo-600 uppercase tracking-wider block font-mono">DG 1: Massen im Zentrum</span>
+                        <span className="text-slate-500">Schüsse auf die konzentrischen Ringe der Zielscheibe (2 bis 10 Punkte).</span>
+                      </div>
+                      
+                      <div className="bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                        <span className="font-extrabold text-[10px] text-indigo-600 uppercase tracking-wider block font-mono">DG 2: Stockschiessen</span>
+                        <span className="text-slate-500">Gezielter Schuss auf im Zielfeld platzierte Zielstöcke (Ablenken).</span>
+                      </div>
+
+                      <div className="bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                        <span className="font-extrabold text-[10px] text-indigo-600 uppercase tracking-wider block font-mono">DG 3: Massen in die Ringe</span>
+                        <span className="text-slate-500">Platzieren in markierten Zielringen in den hinteren bzw. vorderen Ecken.</span>
+                      </div>
+
+                      <div className="bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                        <span className="font-extrabold text-[10px] text-indigo-600 uppercase tracking-wider block font-mono">DG 4: Platzieren/Anlegen</span>
+                        <span className="text-slate-500">Gefordertes nahes Anlegen an andere Stöcke bzw. Platzieren.</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* PDF Rules download link */}
+              <div className="mt-4 pt-3.5 border-t border-slate-100">
+                <a
+                  href="https://www.stocksport-austria.at/wp-content/uploads/2022/11/Int.-Eisstock-Regeln_IER-Regelbuch-2022.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2.5 text-xs font-bold text-white transition-all hover:bg-indigo-600 shadow-sm"
+                >
+                  <FileText className="h-4 w-4 text-cyan-400 shrink-0" />
+                  <span>Offizielles IER Regelbuch (PDF)</span>
+                  <ExternalLink className="h-3.5 w-3.5 opacity-60 ml-0.5 shrink-0" />
+                </a>
               </div>
             </div>
           </div>
