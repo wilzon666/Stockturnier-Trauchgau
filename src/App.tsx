@@ -12,6 +12,8 @@ import {
   Plus,
   RefreshCw,
   Play,
+  Tv,
+  ChevronRight,
 } from "lucide-react";
 import { Tournament, AppSettings, TargetRoundScore, DistanceAttempt, SpecialOlympicsRound } from "./types";
 import { StockAPI, loadSettings } from "./lib/api";
@@ -22,6 +24,7 @@ import TournamentsTab from "./components/TournamentsTab";
 import LiveEntryTab from "./components/LiveEntryTab";
 import Reports from "./components/Reports";
 import SettingsTab from "./components/SettingsTab";
+import Scoreboard from "./components/Scoreboard";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("dashboard");
@@ -36,6 +39,25 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<string>("");
+  const [path, setPath] = useState(window.location.pathname);
+
+  // Monitor URL path changes for custom routing
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setPath(window.location.pathname);
+    };
+    window.addEventListener("popstate", handleLocationChange);
+    const pathInterval = setInterval(() => {
+      if (window.location.pathname !== path) {
+        setPath(window.location.pathname);
+      }
+    }, 500);
+
+    return () => {
+      window.removeEventListener("popstate", handleLocationChange);
+      clearInterval(pathInterval);
+    };
+  }, [path]);
 
   // Load configuration and data
   const loadData = async (showLoading = false) => {
@@ -86,6 +108,17 @@ export default function App() {
     tournaments.find((t) => t.status === "active" && !t.archived) ||
     tournaments.find((t) => !t.archived) ||
     null;
+
+  // Intercept for Scoreboard view (Full-screen widescreen TV display)
+  if (path.includes("/scoreboard")) {
+    return (
+      <Scoreboard
+        onBackToAdmin={() => {
+          window.location.href = "/";
+        }}
+      />
+    );
+  }
 
   // Sync selected ID when activeTournament changes
   useEffect(() => {
@@ -262,6 +295,38 @@ export default function App() {
               </button>
             );
           })}
+
+          <div className="border-t border-slate-100 my-2.5 pt-2.5">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">StockTV Live</p>
+            <button
+              onClick={() => {
+                window.location.href = "/scoreboard";
+              }}
+              className="w-full text-left p-3 rounded-xl text-xs font-black transition-all flex items-center gap-3 text-indigo-600 bg-indigo-50/35 hover:bg-indigo-50 hover:text-indigo-900 border border-indigo-100/30 cursor-pointer shadow-xs"
+            >
+              <Tv className="h-4.5 w-4.5 text-indigo-500 shrink-0" />
+              <span>Scoreboard (Auto)</span>
+            </button>
+
+            {/* List lane-specific scoreboards dynamically! */}
+            {activeTournament && activeTournament.type === "team" && (
+              <div className="mt-2 pl-3 space-y-1">
+                <p className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Einzelbahnen:</p>
+                {Array.from(new Set(activeTournament.matches.map((m) => m.court))).sort().map((court, idx) => (
+                  <button
+                    key={court}
+                    onClick={() => {
+                      window.location.href = `/scoreboardbahn_${idx + 1}`;
+                    }}
+                    className="w-full text-left px-2 py-1.5 rounded-lg text-[10px] font-bold text-slate-500 hover:text-indigo-600 hover:bg-slate-50 flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <ChevronRight className="h-3 w-3 text-slate-300" />
+                    <span>{court}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </aside>
 
         {/* CONTAINER FOR TAB VIEW CONTENT */}
