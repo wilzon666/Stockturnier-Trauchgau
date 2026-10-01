@@ -18,8 +18,10 @@ import {
   HelpCircle,
   ChevronDown,
   ChevronUp,
+  Swords,
 } from "lucide-react";
 import { Tournament, Match, TargetParticipant, TargetRoundScore, DistanceAttempt, SpecialOlympicsRound } from "../types";
+import { computeClubDuelStats } from "../lib/api";
 
 interface LiveEntryTabProps {
   tournaments: Tournament[];
@@ -411,14 +413,18 @@ export default function LiveEntryTab({
   const pass3Sum = pass3Attempts.reduce((sum, v) => sum + v, 0);
   const pass4Sum = pass4Attempts.reduce((sum, v) => sum + v, 0);
 
+  const isMatchBased = activeTournament && (activeTournament.type === "team" || activeTournament.type === "duell");
+
   // Helpers for filtering
-  const roundsList = activeTournament && activeTournament.type === "team"
+  const roundsList = isMatchBased
     ? Array.from(new Set(activeTournament.matches.map((m) => m.round))).sort((a, b) => a - b)
     : [];
 
-  const courtsList = activeTournament && activeTournament.type === "team"
+  const courtsList = isMatchBased
     ? Array.from(new Set(activeTournament.matches.map((m) => m.court))).sort()
     : [];
+
+  const duelStats = activeTournament && activeTournament.type === "duell" ? computeClubDuelStats(activeTournament) : null;
 
   return (
     <div className="space-y-6" id="live-entry-tab">
@@ -463,8 +469,47 @@ export default function LiveEntryTab({
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Main Matches/Participants Area */}
           <div className="lg:col-span-3 space-y-4">
-            {/* Filters for Team tournament */}
-            {activeTournament.type === "team" && (
+            {/* VEREINSVERGLEICH DUEL SCORE BANNER */}
+            {activeTournament.type === "duell" && duelStats && (
+              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-900/50 rounded-2xl p-4 text-white shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                    <Swords className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3 className="font-extrabold text-sm uppercase tracking-wider text-white">
+                      Vereinsvergleich: {duelStats.clubAName} vs. {duelStats.clubBName}
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      {duelStats.completedMatches} von {duelStats.totalMatches} Spielen abgeschlossen
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-6 justify-center bg-slate-950/70 px-5 py-2 rounded-xl border border-indigo-900/40">
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-indigo-300 uppercase block">{duelStats.clubAName}</span>
+                    <span className="text-2xl sm:text-3xl font-black font-mono text-white">{duelStats.clubAPoints}</span>
+                    <span className="text-[9px] text-slate-400 font-mono block">{duelStats.clubAStockPoints} Stöcke</span>
+                  </div>
+                  <div className="text-xl font-black text-slate-600">:</div>
+                  <div className="text-left">
+                    <span className="text-[10px] font-bold text-emerald-300 uppercase block">{duelStats.clubBName}</span>
+                    <span className="text-2xl sm:text-3xl font-black font-mono text-white">{duelStats.clubBPoints}</span>
+                    <span className="text-[9px] text-slate-400 font-mono block">{duelStats.clubBStockPoints} Stöcke</span>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-md bg-white/10 text-amber-300 border border-amber-400/20">
+                    {duelStats.leader === 'clubA' ? `🏆 Führung: ${duelStats.clubAName}` : duelStats.leader === 'clubB' ? `🏆 Führung: ${duelStats.clubBName}` : '🤝 Gleichstand'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Filters for Match-based tournament */}
+            {isMatchBased && (
               <div className="bg-white border border-slate-100 rounded-xl p-3 shadow-xs flex flex-wrap items-center gap-3 text-xs">
                 <span className="font-semibold text-slate-500 flex items-center gap-1">
                   <Search className="h-3.5 w-3.5 text-indigo-600" />
@@ -523,7 +568,7 @@ export default function LiveEntryTab({
             )}
 
             {/* TEAM MATCHES ENTERING */}
-            {activeTournament.type === "team" && (
+            {isMatchBased && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3" id="live-matches-grid">
                 {activeTournament.matches
                   .filter((m) => {
@@ -638,7 +683,7 @@ export default function LiveEntryTab({
             )}
 
             {/* SINGLE PARTICIPANT COMPETITIONS (TARGET, DISTANCE, SPECIAL OLYMPICS) */}
-            {activeTournament.type !== "team" && (
+            {!isMatchBased && (
               <div className="space-y-2" id="live-target-list">
                 {activeTournament.targetParticipants.map((p, idx) => {
                   let badgeColor = "bg-blue-50 text-blue-700";
@@ -752,12 +797,13 @@ export default function LiveEntryTab({
                 <div className="flex justify-between">
                   <span className="text-slate-400">Typ:</span>
                   <span className="font-bold text-slate-700 capitalize">
-                    {activeTournament.type === "team" ? "Teambewerb" :
+                    {activeTournament.type === "duell" ? "Vereinsvergleich" :
+                     activeTournament.type === "team" ? "Teambewerb" :
                      activeTournament.type === "target" ? "Zielbewerb" :
                      activeTournament.type === "distance" ? "Weitenbewerb" : "Special Olympics"}
                   </span>
                 </div>
-                {activeTournament.type === "team" ? (
+                {isMatchBased ? (
                   <>
                     <div className="flex justify-between">
                       <span className="text-slate-400">Gesamtspiele:</span>

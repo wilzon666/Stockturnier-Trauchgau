@@ -83,7 +83,6 @@ app.get("/api/tournaments/:id", (req, res) => {
 app.post("/api/tournaments", (req, res) => {
   const db = loadDatabase();
   const newTournament: Tournament = {
-    id: "t-" + Date.now(),
     name: req.body.name || "Neues Turnier",
     date: req.body.date || new Date().toISOString().split("T")[0],
     type: req.body.type || "team",
@@ -92,7 +91,9 @@ app.post("/api/tournaments", (req, res) => {
     teams: req.body.teams || [],
     matches: req.body.matches || [],
     targetParticipants: req.body.targetParticipants || [],
-    kehrenCount: req.body.kehrenCount || (req.body.type === "target" ? 4 : 6)
+    kehrenCount: req.body.kehrenCount || (req.body.type === "target" ? 4 : 6),
+    ...req.body,
+    id: "t-" + Date.now()
   };
 
   db.tournaments.push(newTournament);

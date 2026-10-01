@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Award, Trophy, Play, Settings, Shield, Plus, Calendar, MapPin, Users, Target, BookOpen, ExternalLink, FileText } from "lucide-react";
+import { Award, Trophy, Play, Settings, Shield, Plus, Calendar, MapPin, Users, Target, BookOpen, ExternalLink, FileText, Swords } from "lucide-react";
 import { Tournament } from "../types";
+import { computeClubDuelStats } from "../lib/api";
 
 interface DashboardProps {
   tournaments: Tournament[];
@@ -128,18 +129,36 @@ export default function Dashboard({
                     <div className="flex items-center gap-2">
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          tournament.type === "team"
+                          tournament.type === "duell"
+                            ? "bg-rose-50 text-rose-700 border border-rose-100"
+                            : tournament.type === "team"
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                            : "bg-blue-50 text-blue-700 border border-blue-100"
+                            : tournament.type === "target"
+                            ? "bg-blue-50 text-blue-700 border border-blue-100"
+                            : tournament.type === "distance"
+                            ? "bg-amber-50 text-amber-700 border border-amber-100"
+                            : "bg-purple-50 text-purple-700 border border-purple-100"
                         }`}
                       >
-                        {tournament.type === "team" ? (
+                        {tournament.type === "duell" ? (
+                          <>
+                            <Swords className="h-2.5 w-2.5 text-rose-600" /> Vereinsvergleich
+                          </>
+                        ) : tournament.type === "team" ? (
                           <>
                             <Users className="h-2.5 w-2.5" /> Teambewerb
                           </>
-                        ) : (
+                        ) : tournament.type === "target" ? (
                           <>
                             <Target className="h-2.5 w-2.5" /> Zielbewerb
+                          </>
+                        ) : tournament.type === "distance" ? (
+                          <>
+                            <Trophy className="h-2.5 w-2.5 text-amber-600" /> Weitenbewerb
+                          </>
+                        ) : (
+                          <>
+                            <Trophy className="h-2.5 w-2.5 text-purple-600" /> Special Olympics
                           </>
                         )}
                       </span>
@@ -148,6 +167,20 @@ export default function Dashboard({
                     </div>
 
                     <h3 className="font-bold text-slate-800 text-base">{tournament.name}</h3>
+
+                    {tournament.type === "duell" && (() => {
+                      const duelStats = computeClubDuelStats(tournament);
+                      if (!duelStats) return null;
+                      return (
+                        <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-900 text-white w-fit text-xs font-mono shadow-xs">
+                          <Swords className="h-3.5 w-3.5 text-rose-400" />
+                          <span className="font-bold text-indigo-300">{duelStats.clubAName}</span>
+                          <span className="font-black text-white">{duelStats.clubAPoints} : {duelStats.clubBPoints}</span>
+                          <span className="font-bold text-emerald-300">{duelStats.clubBName}</span>
+                          <span className="text-[9px] text-slate-400 font-sans ml-1">({duelStats.completedMatches}/{duelStats.totalMatches})</span>
+                        </div>
+                      );
+                    })()}
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                       <span className="flex items-center gap-1">

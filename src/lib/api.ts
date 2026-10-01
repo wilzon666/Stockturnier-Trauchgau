@@ -1,4 +1,4 @@
-import { Tournament, AppSettings, Team, Match, TeamRankingRow, TargetRoundScore, DistanceAttempt, SpecialOlympicsRound } from "../types";
+import { Tournament, AppSettings, Team, Match, TeamRankingRow, TargetRoundScore, DistanceAttempt, SpecialOlympicsRound, ClubDuelStats } from "../types";
 
 const SETTINGS_KEY = "stockapp_settings";
 const LOCAL_DB_KEY = "stockapp_local_tournaments";
@@ -108,7 +108,6 @@ export const StockAPI = {
     if (settings.isOfflineMode) {
       const list = getLocalTournaments();
       const newT: Tournament = {
-        id: "t-local-" + Date.now(),
         name: tournament.name || "Neues Turnier",
         date: tournament.date || new Date().toISOString().split("T")[0],
         type: tournament.type || "team",
@@ -118,6 +117,8 @@ export const StockAPI = {
         matches: tournament.matches || [],
         targetParticipants: tournament.targetParticipants || [],
         kehrenCount: tournament.kehrenCount || (tournament.type === "target" ? 4 : 6),
+        ...tournament,
+        id: "t-local-" + Date.now(),
       };
       list.push(newT);
       saveLocalTournaments(list);
@@ -138,7 +139,6 @@ export const StockAPI = {
       // fallback save local
       const list = getLocalTournaments();
       const newT: Tournament = {
-        id: "t-local-" + Date.now(),
         name: tournament.name || "Neues Turnier",
         date: tournament.date || new Date().toISOString().split("T")[0],
         type: tournament.type || "team",
@@ -148,6 +148,8 @@ export const StockAPI = {
         matches: tournament.matches || [],
         targetParticipants: tournament.targetParticipants || [],
         kehrenCount: tournament.kehrenCount || (tournament.type === "target" ? 4 : 6),
+        ...tournament,
+        id: "t-local-" + Date.now(),
       };
       list.push(newT);
       saveLocalTournaments(list);
@@ -695,4 +697,131 @@ export function computeSpecialTournamentRankings(tournament: Tournament): (TeamR
   });
 
   return combinedList;
+}
+
+// Compute club duel overall stats (Vereinswertung für 2 Mannschaften)
+export function computeClubDuelStats(tournament: Tournament): ClubDuelStats | null {
+  if (tournament.type !== 'duell' && !tournament.clubDuelConfig) {
+    return null;
+  }
+
+  const teams = tournament.teams || [];
+  const matches = tournament.matches || [];
+
+  // Determine Club A and Club B names
+  let clubAName = tournament.clubDuelConfig?.clubAName;
+  let clubBName = tournament.clubDuelConfig?.clubBName;
+
+  if (!clubAName || !clubBName) {
+    // Try to infer from team groups or clubs
+    const distinctClubs = Array.from(new Set(teams.map(t => t.club || t.group).filter(Boolean))) as string[];
+    if (distinctClubs.length >= 2) {
+      clubAName = distinctClubs[0];
+      clubBName = distinctClubs[1];
+    } else {
+      clubAName = "Mannschaft 1";
+      clubBName = "Mannschaft 2";
+    }
+  }
+
+  // Map each team to Club A or Club B
+  const teamClubMap = new Map<string, 'A' | 'B'>();
+  teams.forEach(t => {
+    const club = t.club || t.group;
+    if (club === clubAName) {
+      teamClubMap.set(t.id, 'A');
+    } else if (club === clubBName) {
+      teamClubMap.set(t.id, 'B');
+    } else {
+      // Default: if name contains clubAName or index
+      if (t.name.toLowerCase().includes(clubAName!.toLowerCase())) {
+        teamClubMap.set(t.id, 'A');
+      } else {
+        teamClubMap.set(t.id, 'B');
+      }
+    }
+  });
+
+  let clubAPoints = 0;
+  let clubBPoints = 0;
+  let clubAStockPoints = 0;
+  let clubBStockPoints = 0;
+  let clubAWins = 0;
+  let clubBWins = 0;
+  let draws = 0;
+  let completedMatches = 0;
+
+  matches.forEach(m => {
+    const clubTeamA = teamClubMap.get(m.teamAId) || 'A';
+    const clubTeamB = teamClubMap.get(m.teamBId) || 'B';
+
+    if (m.status === 'completed' && m.teamAScore !== null && m.teamBScore !== null) {
+      completedMatches++;
+      let sA = m.teamAScore;
+      let sB = m.teamBScore;
+
+      // Handle DQ or Absent
+      if (m.isDQ || m.isAbsent) {
+        const isDQ_A = (m.isDQ && m.dqTeamId === m.teamAId) || (m.isAbsent && m.absentTeamId === m.teamAId);
+        const isDQ_B = (m.isDQ && m.dqTeamId === m.teamBId) || (m.isAbsent && m.absentTeamId === m.teamBId);
+        if (isDQ_A && isDQ_B) { sA = 0; sB = 0; }
+        else if (isDQ_A) { sA = 0; sB = 100; }
+        else if (isDQ_B) { sA = 100; sB = 0; }
+      }
+
+      const scoreForClubA = clubTeamA === 'A' ? sA : sB;
+      const scoreForClubB = clubTeamA === 'A' ? sB : sA;
+
+      clubAStockPoints += scoreForClubA;
+      clubBStockPoints += scoreForClubB;
+
+      if (scoreForClubA > scoreForClubB) {
+        clubAWins++;
+        clubAPoints += 2;
+      } else if (scoreForClubB > scoreForClubA) {
+        clubBWins++;
+        clubBPoints += 2;
+      } else {
+        draws++;
+        clubAPoints += 1;
+        clubBPoints += 1;
+      }
+    }
+  });
+
+  const clubAStockDiff = clubAStockPoints - clubBStockPoints;
+  const clubBStockDiff = clubBStockPoints - clubAStockPoints;
+  const clubAStockNote = Number((clubAStockPoints / (clubBStockPoints === 0 ? 1 : clubBStockPoints)).toFixed(3));
+  const clubBStockNote = Number((clubBStockPoints / (clubAStockPoints === 0 ? 1 : clubAStockPoints)).toFixed(3));
+
+  let leader: 'clubA' | 'clubB' | 'draw' = 'draw';
+  if (clubAPoints > clubBPoints) {
+    leader = 'clubA';
+  } else if (clubBPoints > clubAPoints) {
+    leader = 'clubB';
+  } else {
+    // Tie breaker: Stocknote or StockDiff
+    if (clubAStockDiff > clubBStockDiff) leader = 'clubA';
+    else if (clubBStockDiff > clubAStockDiff) leader = 'clubB';
+    else leader = 'draw';
+  }
+
+  return {
+    clubAName,
+    clubBName,
+    clubAPoints,
+    clubBPoints,
+    clubAStockPoints,
+    clubBStockPoints,
+    clubAStockDiff,
+    clubBStockDiff,
+    clubAStockNote,
+    clubBStockNote,
+    clubAWins,
+    clubBWins,
+    draws,
+    totalMatches: matches.length,
+    completedMatches,
+    leader,
+  };
 }

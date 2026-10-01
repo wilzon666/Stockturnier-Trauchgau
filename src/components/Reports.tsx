@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Printer, FileText, Download, Award, Shield, Users, Target } from "lucide-react";
+import { Printer, FileText, Download, Award, Shield, Users, Target, Swords } from "lucide-react";
 import { Tournament } from "../types";
-import { computeTeamRankings, computeSpecialTournamentRankings } from "../lib/api";
+import { computeTeamRankings, computeSpecialTournamentRankings, computeClubDuelStats } from "../lib/api";
 
 interface ReportsProps {
   activeTournament: Tournament | null;
@@ -23,23 +23,27 @@ export default function Reports({ activeTournament }: ReportsProps) {
     );
   }
 
+  const isMatchBased = activeTournament.type === "team" || activeTournament.type === "duell";
+
   // Calculate team rankings
-  const teamRankings = activeTournament.type === "team"
-    ? computeTeamRankings(activeTournament.teams, activeTournament.matches)
+  const teamRankings = isMatchBased
+    ? computeTeamRankings(activeTournament.teams, activeTournament.matches, activeTournament.rulesVersion)
     : [];
 
+  const duelStats = activeTournament.type === "duell" ? computeClubDuelStats(activeTournament) : null;
+
   const groupAStandings = activeTournament.isSpecialThreeLaneMode 
-    ? computeTeamRankings(activeTournament.teams.filter(t => t.group === "Gruppe A" || !t.group), activeTournament.matches.filter(m => m.phase === "vorrunde" || !m.phase))
+    ? computeTeamRankings(activeTournament.teams.filter(t => t.group === "Gruppe A" || !t.group), activeTournament.matches.filter(m => m.phase === "vorrunde" || !m.phase), activeTournament.rulesVersion)
     : [];
   const groupBStandings = activeTournament.isSpecialThreeLaneMode 
-    ? computeTeamRankings(activeTournament.teams.filter(t => t.group === "Gruppe B"), activeTournament.matches.filter(m => m.phase === "vorrunde" || !m.phase))
+    ? computeTeamRankings(activeTournament.teams.filter(t => t.group === "Gruppe B"), activeTournament.matches.filter(m => m.phase === "vorrunde" || !m.phase), activeTournament.rulesVersion)
     : [];
   const overallSpecialStandings = activeTournament.isSpecialThreeLaneMode
     ? computeSpecialTournamentRankings(activeTournament)
     : [];
 
   // Calculate individual rankings (Target, Distance, Special Olympics)
-  const individualRankings = activeTournament.type !== "team"
+  const individualRankings = !isMatchBased
     ? [...activeTournament.targetParticipants].sort((a, b) => b.totalScore - a.totalScore)
     : [];
 
@@ -48,7 +52,7 @@ export default function Reports({ activeTournament }: ReportsProps) {
   };
 
   // Courts list for court sheets
-  const courtsList = activeTournament.type === "team"
+  const courtsList = isMatchBased
     ? Array.from(new Set(activeTournament.matches.map((m) => m.court))).sort()
     : [];
 
@@ -91,7 +95,7 @@ export default function Reports({ activeTournament }: ReportsProps) {
             Offizielle Ergebnisliste
           </button>
 
-          {activeTournament.type === "team" && (
+          {isMatchBased && (
             <>
               <button
                 onClick={() => setReportType("scorecards")}
@@ -179,7 +183,90 @@ export default function Reports({ activeTournament }: ReportsProps) {
                     Offizielle Ergebnisliste
                   </h2>
 
-                  {activeTournament.type === "team" ? (
+                  {activeTournament.type === "duell" ? (
+                    <div className="space-y-6">
+                      {/* VEREINSVERGLEICH GESAMTWERTUNG BOX */}
+                      {duelStats && (
+                        <div className="border-2 border-slate-900 rounded-xl p-4 bg-slate-50 print:bg-white space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-300 pb-2">
+                            <span className="font-extrabold uppercase text-[11px] tracking-wider text-slate-800 flex items-center gap-1.5">
+                              <Swords className="h-4 w-4 text-indigo-700 print:text-black" />
+                              Gesamtergebnis Vereinsvergleich
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono font-bold">
+                              {duelStats.completedMatches} von {duelStats.totalMatches} Spielen abgeschlossen
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-3 items-center text-center py-2">
+                            <div>
+                              <span className="font-black text-xs uppercase block text-slate-800">{duelStats.clubAName}</span>
+                              <span className="text-3xl font-black font-mono text-slate-900">{duelStats.clubAPoints}</span>
+                              <span className="text-[10px] text-slate-500 font-mono block">{duelStats.clubAStockPoints} Stöcke (Note: {duelStats.clubAStockNote.toFixed(3)})</span>
+                            </div>
+
+                            <div className="space-y-1">
+                              <span className="text-[9px] font-bold uppercase text-slate-400">PUNKTE</span>
+                              <span className="text-2xl font-black text-slate-400 block">:</span>
+                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-800 print:border print:border-slate-400">
+                                {duelStats.leader === 'clubA' ? `Sieger: ${duelStats.clubAName}` : duelStats.leader === 'clubB' ? `Sieger: ${duelStats.clubBName}` : 'Unentschieden'}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="font-black text-xs uppercase block text-slate-800">{duelStats.clubBName}</span>
+                              <span className="text-3xl font-black font-mono text-slate-900">{duelStats.clubBPoints}</span>
+                              <span className="text-[10px] text-slate-500 font-mono block">{duelStats.clubBStockPoints} Stöcke (Note: {duelStats.clubBStockNote.toFixed(3)})</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* TEAMSTANDINGS TABLE */}
+                      <div className="space-y-2">
+                        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b border-slate-300 pb-1">
+                          Einzelwertung der Mannschaften
+                        </h3>
+                        <table className="w-full text-xs text-left">
+                          <thead>
+                            <tr className="border-b-2 border-slate-800 font-bold uppercase text-[9px] text-slate-600">
+                              <th className="py-2 text-center w-12">Rang</th>
+                              <th className="py-2">Mannschaft / Verein</th>
+                              <th className="py-2 text-center w-12">Spiele</th>
+                              <th className="py-2 text-center w-20">Spielpunkte</th>
+                              <th className="py-2 text-center w-20">Stockpunkte</th>
+                              <th className="py-2 text-center w-16">Diff.</th>
+                              <th className="py-2 text-center w-16 text-indigo-700 font-black print:text-black">Stocknote</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {teamRankings.map((row, idx) => (
+                              <tr key={row.teamId} className="hover:bg-slate-50 font-medium">
+                                <td className="py-2.5 text-center font-bold text-slate-900">{idx + 1}</td>
+                                <td className="py-2.5">
+                                  <p className="font-bold text-slate-900">{row.teamName}</p>
+                                  {row.club && <p className="text-[10px] text-slate-500">{row.club}</p>}
+                                </td>
+                                <td className="py-2.5 text-center">{row.matchesPlayed}</td>
+                                <td className="py-2.5 text-center font-mono font-bold">
+                                  {row.matchPointsPositive}:{row.matchPointsNegative}
+                                </td>
+                                <td className="py-2.5 text-center font-mono">
+                                  {row.stockPointsPositive}:{row.stockPointsNegative}
+                                </td>
+                                <td className="py-2.5 text-center font-mono">
+                                  {row.stockPointsDiff > 0 ? `+${row.stockPointsDiff}` : row.stockPointsDiff}
+                                </td>
+                                <td className="py-2.5 text-center font-mono font-black text-indigo-600 print:text-black">
+                                  {row.stockNote.toFixed(3)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : activeTournament.type === "team" ? (
                     activeTournament.isSpecialThreeLaneMode ? (
                       <div className="space-y-8">
                         {/* Gruppe A Vorrunde */}
@@ -470,7 +557,7 @@ export default function Reports({ activeTournament }: ReportsProps) {
               )}
 
               {/* REPORT TYPE 2: INDIVIDUAL MATCH REPORTS / SCORECARDS */}
-              {reportType === "scorecards" && activeTournament.type === "team" && (
+              {reportType === "scorecards" && isMatchBased && (
                 <div className="mt-6 space-y-8">
                   <h2 className="text-base font-black text-slate-900 uppercase tracking-wider border-b border-slate-300 pb-1.5 text-center">
                     Spielberichte / Wertungskarten
@@ -522,7 +609,7 @@ export default function Reports({ activeTournament }: ReportsProps) {
               )}
 
               {/* REPORT TYPE 3: LANE SCORE SHEETS / BAHNBLÖCKE */}
-              {reportType === "courts" && activeTournament.type === "team" && (
+              {reportType === "courts" && isMatchBased && (
                 <div className="mt-6 space-y-6">
                   <h2 className="text-base font-black text-slate-900 uppercase tracking-wider border-b border-slate-300 pb-1.5 text-center">
                     Bahnblock-Blatt

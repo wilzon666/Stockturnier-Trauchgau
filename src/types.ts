@@ -1,4 +1,31 @@
-export type TournamentType = 'team' | 'target' | 'distance' | 'special-olympics';
+export type TournamentType = 'team' | 'target' | 'distance' | 'special-olympics' | 'duell';
+
+export interface ClubDuelConfig {
+  clubAName: string; // e.g. "EC Trauchgau"
+  clubBName: string; // e.g. "SV Prem"
+  teamsCountA: number; // e.g. 3
+  teamsCountB: number; // e.g. 3
+  roundsCount: number; // e.g. 2 Durchgänge
+}
+
+export interface ClubDuelStats {
+  clubAName: string;
+  clubBName: string;
+  clubAPoints: number;
+  clubBPoints: number;
+  clubAStockPoints: number;
+  clubBStockPoints: number;
+  clubAStockDiff: number;
+  clubBStockDiff: number;
+  clubAStockNote: number;
+  clubBStockNote: number;
+  clubAWins: number;
+  clubBWins: number;
+  draws: number;
+  totalMatches: number;
+  completedMatches: number;
+  leader: 'clubA' | 'clubB' | 'draw';
+}
 
 export interface Team {
   id: string;
@@ -103,6 +130,7 @@ export interface Tournament {
   headerImage?: string; // Base64 or URL
   logoImage?: string; // Base64 or URL
   archived?: boolean;
+  clubDuelConfig?: ClubDuelConfig; // Configuration for 2-club duel tournaments
 }
 
 export interface AppSettings {

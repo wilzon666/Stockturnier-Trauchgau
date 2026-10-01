@@ -12,9 +12,11 @@ import {
   RefreshCw,
   ChevronRight,
   Volume2,
+  Swords,
+  Shield,
 } from "lucide-react";
 import { Tournament, Team, Match, TargetParticipant, TeamRankingRow } from "../types";
-import { StockAPI, computeTeamRankings, computeSpecialTournamentRankings } from "../lib/api";
+import { StockAPI, computeTeamRankings, computeSpecialTournamentRankings, computeClubDuelStats } from "../lib/api";
 
 interface ScoreboardProps {
   onBackToAdmin?: () => void;
@@ -103,9 +105,11 @@ export default function Scoreboard({ onBackToAdmin }: ScoreboardProps) {
     tournaments[0] ||
     null;
 
+  const isMatchBased = activeTournament && (activeTournament.type === "team" || activeTournament.type === "duell");
+
   // Extract courts and build dynamic slides
   const courtsList =
-    activeTournament && activeTournament.type === "team"
+    isMatchBased
       ? (Array.from(new Set(activeTournament.matches.map((m) => m.court))).sort() as string[])
       : [];
 
@@ -114,7 +118,7 @@ export default function Scoreboard({ onBackToAdmin }: ScoreboardProps) {
   // Handle URL lane targeting: e.g. /scoreboardbahn_1
   const isSpecificLanePage = currentPath.includes("/scoreboardbahn_");
   let targetedCourtName: string | null = null;
-  if (isSpecificLanePage && activeTournament && activeTournament.type === "team") {
+  if (isSpecificLanePage && isMatchBased) {
     const matchMatch = currentPath.match(/\/scoreboardbahn_(\d+)/);
     if (matchMatch) {
       const laneNum = parseInt(matchMatch[1]);
@@ -191,9 +195,11 @@ export default function Scoreboard({ onBackToAdmin }: ScoreboardProps) {
     );
   }
 
+  const duelStats = activeTournament && activeTournament.type === "duell" ? computeClubDuelStats(activeTournament) : null;
+
   // Calculate team rankings for sidebar or slides
   const rankings =
-    activeTournament.type === "team"
+    isMatchBased
       ? activeTournament.isSpecialThreeLaneMode
         ? computeSpecialTournamentRankings(activeTournament)
         : computeTeamRankings(activeTournament.teams, activeTournament.matches, activeTournament.rulesVersion)
@@ -316,9 +322,50 @@ export default function Scoreboard({ onBackToAdmin }: ScoreboardProps) {
                 </span>
               </div>
 
-              {/* TEAM TOURNAMENT LEADERBOARD */}
-              {activeTournament.type === "team" && (
+              {/* TEAM & DUEL TOURNAMENT LEADERBOARD */}
+              {isMatchBased && (
                 <>
+                  {activeTournament.type === "duell" && duelStats && (
+                    <div className="bg-gradient-to-r from-slate-950 via-indigo-950/80 to-slate-950 rounded-2xl border border-indigo-900/60 p-4 mb-4 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <span className="p-2.5 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                          <Swords className="h-6 w-6" />
+                        </span>
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400 font-mono block">
+                            Vereinsvergleich • Gesamtwertung
+                          </span>
+                          <h3 className="text-lg font-black text-white uppercase tracking-tight">
+                            {duelStats.clubAName} <span className="text-slate-500 font-normal">vs</span> {duelStats.clubBName}
+                          </h3>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-6 justify-center bg-slate-900/80 px-6 py-2 rounded-xl border border-indigo-900/40">
+                        <div className="text-right">
+                          <span className="text-[10px] font-bold text-indigo-300 uppercase block">{duelStats.clubAName}</span>
+                          <span className="text-3xl font-black font-mono text-white leading-none">{duelStats.clubAPoints}</span>
+                          <span className="text-[10px] text-slate-400 font-mono block mt-0.5">{duelStats.clubAStockPoints} Stöcke</span>
+                        </div>
+                        <div className="text-2xl font-black text-slate-600">:</div>
+                        <div className="text-left">
+                          <span className="text-[10px] font-bold text-emerald-300 uppercase block">{duelStats.clubBName}</span>
+                          <span className="text-3xl font-black font-mono text-white leading-none">{duelStats.clubBPoints}</span>
+                          <span className="text-[10px] text-slate-400 font-mono block mt-0.5">{duelStats.clubBStockPoints} Stöcke</span>
+                        </div>
+                      </div>
+
+                      <div className="text-right space-y-1">
+                        <span className="inline-block text-[11px] font-extrabold uppercase px-3 py-1 rounded-md bg-white/10 text-amber-300 border border-amber-400/20">
+                          {duelStats.leader === 'clubA' ? `🏆 Führung: ${duelStats.clubAName}` : duelStats.leader === 'clubB' ? `🏆 Führung: ${duelStats.clubBName}` : '🤝 Gleichstand'}
+                        </span>
+                        <p className="text-[10px] text-slate-400 font-mono">
+                          {duelStats.completedMatches} von {duelStats.totalMatches} Spielen beendet
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {activeTournament.isSpecialThreeLaneMode ? (
                     /* 3-lane Group Standings Side-by-Side */
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
@@ -545,7 +592,7 @@ export default function Scoreboard({ onBackToAdmin }: ScoreboardProps) {
               )}
 
               {/* TARGET/DISTANCE/SPECIAL OLYMPICS TOURNAMENT LEADERBOARD */}
-              {activeTournament.type !== "team" && (
+              {!isMatchBased && (
                 <div className="bg-slate-950/40 rounded-2xl border border-slate-900 p-5 flex-1 shadow-2xl overflow-hidden">
                   <div className="overflow-x-auto h-full">
                     <table className="w-full text-left text-sm">
@@ -651,6 +698,31 @@ export default function Scoreboard({ onBackToAdmin }: ScoreboardProps) {
                   </span>
                 )}
               </div>
+
+              {/* COMPACT DUEL BANNER ON LANE SLIDE */}
+              {activeTournament.type === "duell" && duelStats && (
+                <div className="bg-slate-950/80 rounded-2xl border border-indigo-900/40 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs shadow-lg">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1 rounded-md bg-rose-500/20 text-rose-400">
+                      <Swords className="h-4 w-4" />
+                    </span>
+                    <span className="font-extrabold uppercase text-[10px] tracking-wider text-slate-400">Vereinsvergleich:</span>
+                    <span className="font-black text-indigo-300">{duelStats.clubAName}</span>
+                    <span className="font-black font-mono text-white bg-slate-900 px-2 py-0.5 rounded border border-indigo-900/50">
+                      {duelStats.clubAPoints} : {duelStats.clubBPoints}
+                    </span>
+                    <span className="font-black text-emerald-300">{duelStats.clubBName}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      Stöcke: {duelStats.clubAStockPoints} : {duelStats.clubBStockPoints}
+                    </span>
+                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-white/10 text-amber-300 border border-amber-400/20">
+                      {duelStats.leader === 'clubA' ? `🏆 ${duelStats.clubAName}` : duelStats.leader === 'clubB' ? `🏆 ${duelStats.clubBName}` : '🤝 Remis'}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {(() => {
                 // Find games specifically for this court

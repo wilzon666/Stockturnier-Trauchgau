@@ -15,9 +15,11 @@ import {
   CheckCircle,
   AlertCircle,
   Settings,
+  Swords,
+  Shield,
 } from "lucide-react";
-import { Tournament, Team, TargetParticipant, Match } from "../types";
-import { computeTeamRankings, StockAPI } from "../lib/api";
+import { Tournament, Team, TargetParticipant, Match, TournamentType, ClubDuelConfig } from "../types";
+import { computeTeamRankings, computeClubDuelStats, StockAPI } from "../lib/api";
 
 interface TournamentsTabProps {
   tournaments: Tournament[];
@@ -55,7 +57,7 @@ export default function TournamentsTab({
   const isLocked = activeTournament ? (activeTournament.status !== "planned" || !!activeTournament.archived) : false;
   const [name, setName] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [type, setType] = useState<"team" | "target" | "distance" | "special-olympics">("team");
+  const [type, setType] = useState<TournamentType>("team");
   const [location, setLocation] = useState("");
   const [kehrenCount, setKehrenCount] = useState(6);
   const [maxCourts, setMaxCourts] = useState(3);
@@ -65,6 +67,14 @@ export default function TournamentsTab({
   const [competitionLeader, setCompetitionLeader] = useState("");
   const [referee, setReferee] = useState("");
   const [clerk, setClerk] = useState("");
+
+  // Duel (Vereinsvergleich) specific state
+  const [duelClubA, setDuelClubA] = useState("EC Trauchgau");
+  const [duelClubB, setDuelClubB] = useState("SV Prem");
+  const [duelTeamsCountA, setDuelTeamsCountA] = useState(3);
+  const [duelTeamsCountB, setDuelTeamsCountB] = useState(3);
+  const [duelRoundsCount, setDuelRoundsCount] = useState(2);
+  const [addTeamForClub, setAddTeamForClub] = useState<"A" | "B">("A");
 
   // Caching sponsor logo state
   const [cachingSponsor, setCachingSponsor] = useState(false);
@@ -102,10 +112,33 @@ export default function TournamentsTab({
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    const finalName = name.trim() || (type === "duell" ? `Vereinsvergleich: ${duelClubA} vs. ${duelClubB}` : "");
+    if (!finalName) return;
+
+    let initialTeams: Team[] = [];
+    if (type === "duell") {
+      const clubA = duelClubA.trim() || "Mannschaft 1";
+      const clubB = duelClubB.trim() || "Mannschaft 2";
+      for (let i = 1; i <= duelTeamsCountA; i++) {
+        initialTeams.push({
+          id: `team-a-${Date.now()}-${i}`,
+          name: `${clubA} ${i}`,
+          club: clubA,
+          group: clubA,
+        });
+      }
+      for (let i = 1; i <= duelTeamsCountB; i++) {
+        initialTeams.push({
+          id: `team-b-${Date.now()}-${i}`,
+          name: `${clubB} ${i}`,
+          club: clubB,
+          group: clubB,
+        });
+      }
+    }
 
     onCreateTournament({
-      name,
+      name: finalName,
       date,
       type,
       location: location || "Stocksportplatz",
@@ -118,9 +151,16 @@ export default function TournamentsTab({
       competitionLeader: competitionLeader.trim() || undefined,
       referee: referee.trim() || undefined,
       clerk: clerk.trim() || undefined,
-      teams: [],
+      teams: initialTeams,
       matches: [],
       targetParticipants: [],
+      clubDuelConfig: type === "duell" ? {
+        clubAName: duelClubA.trim() || "Mannschaft 1",
+        clubBName: duelClubB.trim() || "Mannschaft 2",
+        teamsCountA: duelTeamsCountA,
+        teamsCountB: duelTeamsCountB,
+        roundsCount: duelRoundsCount,
+      } : undefined,
     });
 
     // Reset
@@ -137,9 +177,9 @@ export default function TournamentsTab({
     setShowCreateModal(false);
   };
 
-  // Round robin scheduler generator with lane constraint & group splitting
+  // Round robin scheduler generator with lane constraint & group splitting & 2-club duel
   const handleGenerateSchedule = () => {
-    if (!activeTournament || activeTournament.type !== "team") return;
+    if (!activeTournament || (activeTournament.type !== "team" && activeTournament.type !== "duell")) return;
     if (activeTournament.status !== "planned") {
       alert("Der Spielplan kann nicht generiert werden, da das Turnier bereits aktiv oder beendet ist.");
       return;
@@ -151,6 +191,72 @@ export default function TournamentsTab({
     }
 
     const maxLanes = activeTournament.maxCourts || 3;
+
+    // 2-Club Duel Cross-Scheduler (Vereinsvergleich: z.B. Trauchgau vs. Prem)
+    if (activeTournament.type === "duell") {
+      const clubAName = activeTournament.clubDuelConfig?.clubAName || teams[0]?.club || teams[0]?.group || "Mannschaft 1";
+      const clubBName = activeTournament.clubDuelConfig?.clubBName || teams.find(t => (t.club || t.group) !== clubAName)?.club || "Mannschaft 2";
+
+      const teamsA = teams.filter(t => (t.club === clubAName || t.group === clubAName || t.name.toLowerCase().includes(clubAName.toLowerCase())));
+      const teamsB = teams.filter(t => !teamsA.some(ta => ta.id === t.id));
+
+      if (teamsA.length === 0 || teamsB.length === 0) {
+        alert(`Für den Vereinsvergleich müssen Teams für beide Mannschaften (${clubAName} und ${clubBName}) vorhanden sein.`);
+        return;
+      }
+
+      const roundsCount = activeTournament.clubDuelConfig?.roundsCount || 2;
+      const nA = teamsA.length;
+      const nB = teamsB.length;
+      const K = Math.max(nA, nB);
+      const matches: Match[] = [];
+      let matchCounter = 1;
+      let globalDurchgang = 1;
+      let globalRound = 1;
+
+      for (let d = 1; d <= roundsCount; d++) {
+        for (let r = 0; r < K; r++) {
+          const roundPairings: { teamAId: string; teamBId: string }[] = [];
+          for (let i = 0; i < nA; i++) {
+            const j = (i + r) % K;
+            if (j < nB) {
+              if (d % 2 === 1) {
+                // Hinrunde / ungerader Durchgang: Team A hat Heimrecht
+                roundPairings.push({ teamAId: teamsA[i].id, teamBId: teamsB[j].id });
+              } else {
+                // Rückrunde / gerader Durchgang: Team B hat Heimrecht (Fairness)
+                roundPairings.push({ teamAId: teamsB[j].id, teamBId: teamsA[i].id });
+              }
+            }
+          }
+
+          // Verteile die Begegnungen auf die Bahnen (maxLanes)
+          const numTimeslotsNeeded = Math.ceil(roundPairings.length / maxLanes);
+          for (let slot = 0; slot < numTimeslotsNeeded; slot++) {
+            const slotPairings = roundPairings.slice(slot * maxLanes, (slot + 1) * maxLanes);
+            slotPairings.forEach((pair, idx) => {
+              matches.push({
+                id: `m-duel-d${d}-r${r + 1}-${matchCounter++}`,
+                round: globalRound,
+                court: `Bahn ${idx + 1}`,
+                teamAId: pair.teamAId,
+                teamBId: pair.teamBId,
+                teamAScore: null,
+                teamBScore: null,
+                status: "planned",
+                kehrenCount: activeTournament.kehrenCount || 6,
+                durchgang: globalDurchgang,
+              });
+            });
+            globalDurchgang++;
+          }
+          globalRound++;
+        }
+      }
+
+      onUpdateTournament(activeTournament.id, { matches });
+      return;
+    }
 
     if (activeTournament.isSpecialThreeLaneMode) {
       // 3-lane Special Mode: split into Group A & B
@@ -548,7 +654,9 @@ export default function TournamentsTab({
                   <div className="flex items-start justify-between gap-2">
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        tournament.type === "team"
+                        tournament.type === "duell"
+                          ? "bg-rose-50 text-rose-700 border border-rose-100"
+                          : tournament.type === "team"
                           ? "bg-emerald-50 text-emerald-700"
                           : tournament.type === "target"
                           ? "bg-blue-50 text-blue-700"
@@ -557,7 +665,11 @@ export default function TournamentsTab({
                           : "bg-purple-50 text-purple-700"
                       }`}
                     >
-                      {tournament.type === "team" ? (
+                      {tournament.type === "duell" ? (
+                        <>
+                          <Swords className="h-2.5 w-2.5 text-rose-600" /> Vereinsvergleich
+                        </>
+                      ) : tournament.type === "team" ? (
                         <>
                           <Users className="h-2.5 w-2.5" /> Teambewerb
                         </>
@@ -660,7 +772,8 @@ export default function TournamentsTab({
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono text-indigo-600 font-semibold uppercase tracking-wider">
-                      {activeTournament.type === "team" ? "Teambewerb" :
+                      {activeTournament.type === "duell" ? "Vereinsvergleich (2 Mannschaften)" :
+                       activeTournament.type === "team" ? "Teambewerb" :
                        activeTournament.type === "target" ? "Zielbewerb" :
                        activeTournament.type === "distance" ? "Weitenwettbewerb" : "Special Olympics"}
                     </span>
@@ -889,6 +1002,327 @@ export default function TournamentsTab({
                   </div>
                 </div>
               </div>
+
+              {/* VEREINSVERGLEICH (2-MANNSCHAFTEN-DUELL) MANAGEMENT */}
+              {activeTournament.type === "duell" && (
+                <div className="space-y-6">
+                  {(() => {
+                    const duelStats = computeClubDuelStats(activeTournament);
+                    const clubA = activeTournament.clubDuelConfig?.clubAName || "Mannschaft 1";
+                    const clubB = activeTournament.clubDuelConfig?.clubBName || "Mannschaft 2";
+                    const teamsA = activeTournament.teams.filter(t => (t.club === clubA || t.group === clubA || t.name.toLowerCase().includes(clubA.toLowerCase())));
+                    const teamsB = activeTournament.teams.filter(t => !teamsA.some(ta => ta.id === t.id));
+
+                    return (
+                      <>
+                        {/* Duel Summary Score Card */}
+                        <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-5 shadow-xl border border-indigo-900/40 space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-900/60 pb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="p-1.5 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                                <Swords className="h-4 w-4" />
+                              </span>
+                              <div>
+                                <h4 className="font-extrabold text-sm uppercase tracking-wider text-white">
+                                  Vereinsvergleich: {clubA} vs. {clubB}
+                                </h4>
+                                <p className="text-[10px] text-slate-400">
+                                  {activeTournament.clubDuelConfig?.roundsCount || 2} Durchgänge • {activeTournament.maxCourts || 3} Bahnen • {activeTournament.kehrenCount || 6} Kehren
+                                </p>
+                              </div>
+                            </div>
+
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 w-fit">
+                              {duelStats?.completedMatches || 0} von {duelStats?.totalMatches || activeTournament.matches.length} Spielen absolviert
+                            </span>
+                          </div>
+
+                          {/* Big Score Display */}
+                          <div className="grid grid-cols-3 items-center gap-2 text-center py-2">
+                            {/* Club A */}
+                            <div className="space-y-1">
+                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 mb-1">
+                                {clubA}
+                              </span>
+                              <div className="text-3xl sm:text-5xl font-black font-mono text-white">
+                                {duelStats?.clubAPoints || 0}
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono">
+                                {duelStats?.clubAStockPoints || 0} Stöcke
+                              </div>
+                              <div className="text-[10px] text-cyan-400 font-mono font-bold">
+                                Note: {duelStats?.clubAStockNote?.toFixed(3) || "0.000"}
+                              </div>
+                            </div>
+
+                            {/* Middle VS */}
+                            <div className="space-y-2">
+                              <div className="text-sm font-black text-slate-400 uppercase tracking-widest">
+                                SPIELPUNKTE
+                              </div>
+                              <div className="text-xl sm:text-2xl font-black text-slate-600">:</div>
+                              {duelStats && duelStats.completedMatches > 0 && (
+                                <div className="text-[10px] font-extrabold px-2 py-1 rounded-md bg-white/10 text-amber-300 inline-block">
+                                  {duelStats.leader === 'clubA' ? `🏆 Führung: ${clubA}` : duelStats.leader === 'clubB' ? `🏆 Führung: ${clubB}` : '🤝 Gleichstand'}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Club B */}
+                            <div className="space-y-1">
+                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 mb-1">
+                                {clubB}
+                              </span>
+                              <div className="text-3xl sm:text-5xl font-black font-mono text-white">
+                                {duelStats?.clubBPoints || 0}
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono">
+                                {duelStats?.clubBStockPoints || 0} Stöcke
+                              </div>
+                              <div className="text-[10px] text-cyan-400 font-mono font-bold">
+                                Note: {duelStats?.clubBStockNote?.toFixed(3) || "0.000"}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Teams in two columns */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Column Club A */}
+                          <div className="space-y-3 bg-indigo-50/30 p-4 rounded-xl border border-indigo-100">
+                            <div className="flex items-center justify-between pb-2 border-b border-indigo-100">
+                              <div className="flex items-center gap-1.5">
+                                <Shield className="h-4 w-4 text-indigo-600" />
+                                <h4 className="font-bold text-slate-800 text-sm">
+                                  {clubA} ({teamsA.length} Teams)
+                                </h4>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                              {teamsA.map((team, idx) => (
+                                <div
+                                  key={team.id}
+                                  className="flex items-center justify-between rounded-lg border border-indigo-100 bg-white p-2 text-xs shadow-2xs"
+                                >
+                                  <div>
+                                    <p className="font-bold text-indigo-950">
+                                      {idx + 1}. {team.name}
+                                    </p>
+                                    {team.players && team.players.length > 0 && (
+                                      <p className="text-[10px] text-slate-400">
+                                        {team.players.join(", ")}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {!isLocked && (
+                                    <button
+                                      onClick={() => handleDeleteTeam(team.id)}
+                                      className="p-1 text-slate-300 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                      title="Team löschen"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                              {teamsA.length === 0 && (
+                                <div className="text-center py-4 text-slate-400 text-xs">
+                                  Noch keine Teams für {clubA} angelegt
+                                </div>
+                              )}
+                            </div>
+
+                            {!isLocked && (
+                              <button
+                                onClick={() => {
+                                  const nextIdx = teamsA.length + 1;
+                                  const newTeam: Team = {
+                                    id: "team-a-" + Date.now(),
+                                    name: `${clubA} ${nextIdx}`,
+                                    club: clubA,
+                                    group: clubA,
+                                  };
+                                  onUpdateTournament(activeTournament.id, {
+                                    teams: [...activeTournament.teams, newTeam],
+                                  });
+                                }}
+                                className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-indigo-700 transition-colors cursor-pointer"
+                              >
+                                <Plus className="h-3.5 w-3.5" /> Team für {clubA} hinzufügen
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Column Club B */}
+                          <div className="space-y-3 bg-emerald-50/30 p-4 rounded-xl border border-emerald-100">
+                            <div className="flex items-center justify-between pb-2 border-b border-emerald-100">
+                              <div className="flex items-center gap-1.5">
+                                <Shield className="h-4 w-4 text-emerald-600" />
+                                <h4 className="font-bold text-slate-800 text-sm">
+                                  {clubB} ({teamsB.length} Teams)
+                                </h4>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                              {teamsB.map((team, idx) => (
+                                <div
+                                  key={team.id}
+                                  className="flex items-center justify-between rounded-lg border border-emerald-100 bg-white p-2 text-xs shadow-2xs"
+                                >
+                                  <div>
+                                    <p className="font-bold text-emerald-950">
+                                      {idx + 1}. {team.name}
+                                    </p>
+                                    {team.players && team.players.length > 0 && (
+                                      <p className="text-[10px] text-slate-400">
+                                        {team.players.join(", ")}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {!isLocked && (
+                                    <button
+                                      onClick={() => handleDeleteTeam(team.id)}
+                                      className="p-1 text-slate-300 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                      title="Team löschen"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                              {teamsB.length === 0 && (
+                                <div className="text-center py-4 text-slate-400 text-xs">
+                                  Noch keine Teams für {clubB} angelegt
+                                </div>
+                              )}
+                            </div>
+
+                            {!isLocked && (
+                              <button
+                                onClick={() => {
+                                  const nextIdx = teamsB.length + 1;
+                                  const newTeam: Team = {
+                                    id: "team-b-" + Date.now(),
+                                    name: `${clubB} ${nextIdx}`,
+                                    club: clubB,
+                                    group: clubB,
+                                  };
+                                  onUpdateTournament(activeTournament.id, {
+                                    teams: [...activeTournament.teams, newTeam],
+                                  });
+                                }}
+                                className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-emerald-700 transition-colors cursor-pointer"
+                              >
+                                <Plus className="h-3.5 w-3.5" /> Team für {clubB} hinzufügen
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Matches Schedule Generation */}
+                        <div className="pt-6 border-t border-slate-100 space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div>
+                              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                                <Swords className="h-4 w-4 text-rose-600" />
+                                Spielplan für Vereinsvergleich
+                              </h4>
+                              <p className="text-[11px] text-slate-500">
+                                Erzeugt für alle {activeTournament.clubDuelConfig?.roundsCount || 2} Durchgänge faire Duelle zwischen {clubA} und {clubB} auf {activeTournament.maxCourts || 3} Bahnen.
+                              </p>
+                            </div>
+
+                            <button
+                              onClick={handleGenerateSchedule}
+                              disabled={teamsA.length === 0 || teamsB.length === 0 || isLocked}
+                              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-rose-600 text-white px-4 py-2 text-xs font-semibold hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-xs cursor-pointer"
+                              id="btn-generate-duel-schedule"
+                            >
+                              <Shuffle className="h-3.5 w-3.5" />
+                              Spielplan generieren
+                            </button>
+                          </div>
+
+                          {activeTournament.matches.length > 0 ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle className="h-4.5 w-4.5 text-emerald-500" />
+                                <span className="text-xs font-semibold text-slate-700">
+                                  Spielplan aktiv: {activeTournament.matches.length} Duelle generiert.
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-1">
+                                {activeTournament.matches.map((match) => {
+                                  const teamA = activeTournament.teams.find((t) => t.id === match.teamAId);
+                                  const teamB = activeTournament.teams.find((t) => t.id === match.teamBId);
+                                  const isTeamA_ClubA = teamA?.club === clubA || teamA?.group === clubA;
+                                  return (
+                                    <div
+                                      key={match.id}
+                                      className="p-2.5 rounded-lg border border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs"
+                                    >
+                                      <div className="space-y-1">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                          <span className="text-[9px] font-mono font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">
+                                            R {match.round}
+                                          </span>
+                                          <span className="text-[9px] text-slate-500 font-bold bg-white px-1.5 py-0.5 rounded border border-slate-100">
+                                            {match.court}
+                                          </span>
+                                          {match.durchgang && (
+                                            <span className="text-[9px] font-bold text-slate-600 bg-slate-200/50 px-1.5 py-0.5 rounded">
+                                              Dg. {match.durchgang}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="font-semibold text-slate-700 flex items-center gap-1.5">
+                                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                            isTeamA_ClubA ? "bg-indigo-50 text-indigo-700" : "bg-emerald-50 text-emerald-700"
+                                          }`}>
+                                            {teamA?.name || "Unbekannt"}
+                                          </span>
+                                          <span className="text-slate-400 font-normal">vs</span>
+                                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                            !isTeamA_ClubA ? "bg-indigo-50 text-indigo-700" : "bg-emerald-50 text-emerald-700"
+                                          }`}>
+                                            {teamB?.name || "Unbekannt"}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="text-right">
+                                        {match.status === "completed" ? (
+                                          <span className="font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">
+                                            {match.teamAScore}:{match.teamBScore}
+                                          </span>
+                                        ) : match.status === "active" ? (
+                                          <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-2 py-1 rounded uppercase tracking-wider animate-pulse">
+                                            Spielt
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] text-slate-400">Offen</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center text-xs text-slate-500">
+                              <AlertCircle className="mx-auto h-5 w-5 text-slate-400 mb-1.5" />
+                              Noch kein Spielplan generiert. Klicken Sie oben auf "Spielplan generieren", um alle Duelle auf die Bahnen zu verteilen.
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
 
               {/* TEAM BEWERB MANAGEMENT */}
               {activeTournament.type === "team" && (
@@ -1134,7 +1568,7 @@ export default function TournamentsTab({
               )}
 
               {/* ZIELBEWERB / WEITENWETTBEWERB / SPECIAL OLYMPICS MANAGEMENT */}
-              {activeTournament.type !== "team" && (
+              {(activeTournament.type === "target" || activeTournament.type === "distance" || activeTournament.type === "special-olympics") && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Add Player form */}
@@ -1305,13 +1739,20 @@ export default function TournamentsTab({
                     <label className="block font-semibold text-slate-500 uppercase">Bewerb-Typ *</label>
                     <select
                       value={type}
-                      onChange={(e) => setType(e.target.value as any)}
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none bg-white"
+                      onChange={(e) => {
+                        const newType = e.target.value as TournamentType;
+                        setType(newType);
+                        if (newType === "duell" && (!name || name.trim() === "Neues Turnier")) {
+                          setName(`Vereinsvergleich: ${duelClubA} vs. ${duelClubB}`);
+                        }
+                      }}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none bg-white font-semibold"
                     >
-                      <option value="team">Teambewerb</option>
-                      <option value="target">Zielbewerb</option>
-                      <option value="distance">Weitenwettbewerb</option>
-                      <option value="special-olympics">Special Olympics</option>
+                      <option value="team">🏆 Teambewerb (Standard)</option>
+                      <option value="duell">⚔️ Vereinsvergleich / 2-Mannschaften-Duell</option>
+                      <option value="target">🎯 Zielbewerb</option>
+                      <option value="distance">🚀 Weitenwettbewerb</option>
+                      <option value="special-olympics">🏅 Special Olympics</option>
                     </select>
                   </div>
 
@@ -1326,6 +1767,104 @@ export default function TournamentsTab({
                     />
                   </div>
                 </div>
+
+                {/* VEREINSVERGLEICH CONFIGURATION IN MODAL */}
+                {type === "duell" && (
+                  <div className="p-3.5 rounded-xl bg-rose-50/50 border border-rose-100 space-y-3">
+                    <div className="flex items-center gap-2 text-rose-700 font-bold text-xs uppercase tracking-wider">
+                      <Swords className="h-4 w-4" />
+                      <span>Vereinsvergleich / Duell-Konfiguration</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Zwei Mannschaften / Vereine (z.B. Trauchgau und Prem) mit je mehreren Teams spielen gegeneinander. 
+                      Keine internen Duelle – jedes Team spielt gegen alle gegnerischen Teams!
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5 shadow-2xs">
+                        <label className="block text-[10px] font-bold text-indigo-700 uppercase">Verein / Mannschaft 1</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="z.B. EC Trauchgau"
+                          value={duelClubA}
+                          onChange={(e) => {
+                            setDuelClubA(e.target.value);
+                            setName(`Vereinsvergleich: ${e.target.value} vs. ${duelClubB}`);
+                          }}
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
+                        />
+                        <div className="flex items-center justify-between text-[11px] pt-1">
+                          <span className="text-slate-500 text-[10px]">Teams:</span>
+                          <select
+                            value={duelTeamsCountA}
+                            onChange={(e) => setDuelTeamsCountA(parseInt(e.target.value) || 1)}
+                            className="rounded border border-slate-200 px-2 py-0.5 text-xs font-bold bg-slate-50"
+                          >
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                              <option key={n} value={n}>{n} Teams</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5 shadow-2xs">
+                        <label className="block text-[10px] font-bold text-emerald-700 uppercase">Verein / Mannschaft 2</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="z.B. SV Prem"
+                          value={duelClubB}
+                          onChange={(e) => {
+                            setDuelClubB(e.target.value);
+                            setName(`Vereinsvergleich: ${duelClubA} vs. ${e.target.value}`);
+                          }}
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
+                        />
+                        <div className="flex items-center justify-between text-[11px] pt-1">
+                          <span className="text-slate-500 text-[10px]">Teams:</span>
+                          <select
+                            value={duelTeamsCountB}
+                            onChange={(e) => setDuelTeamsCountB(parseInt(e.target.value) || 1)}
+                            className="rounded border border-slate-200 px-2 py-0.5 text-xs font-bold bg-slate-50"
+                          >
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                              <option key={n} value={n}>{n} Teams</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block font-semibold text-slate-600 uppercase text-[10px]">Durchgänge *</label>
+                        <select
+                          value={duelRoundsCount}
+                          onChange={(e) => setDuelRoundsCount(parseInt(e.target.value) || 1)}
+                          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold focus:border-indigo-500 focus:outline-none"
+                        >
+                          <option value={1}>1 Durchgang (Einfache Runde)</option>
+                          <option value={2}>2 Durchgänge (Hin- & Rückrunde)</option>
+                          <option value={3}>3 Durchgänge</option>
+                          <option value={4}>4 Durchgänge</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-600 uppercase text-[10px]">Verfügbare Bahnen *</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={16}
+                          value={maxCourts}
+                          onChange={(e) => setMaxCourts(parseInt(e.target.value) || 3)}
+                          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block font-semibold text-slate-500 uppercase">Veranstaltungsort</label>

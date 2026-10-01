@@ -309,7 +309,7 @@ export default function App() {
             </button>
 
             {/* List lane-specific scoreboards dynamically! */}
-            {activeTournament && activeTournament.type === "team" && (
+            {activeTournament && (activeTournament.type === "team" || activeTournament.type === "duell") && (
               <div className="mt-2 pl-3 space-y-1">
                 <p className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Einzelbahnen:</p>
                 {Array.from(new Set(activeTournament.matches.map((m) => m.court))).sort().map((court, idx) => (
