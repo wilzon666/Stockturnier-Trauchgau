@@ -17,6 +17,9 @@ import {
   Settings,
   Swords,
   Shield,
+  Check,
+  X,
+  Pencil,
 } from "lucide-react";
 import { Tournament, Team, TargetParticipant, Match, TournamentType, ClubDuelConfig } from "../types";
 import { computeTeamRankings, computeClubDuelStats, StockAPI } from "../lib/api";
@@ -69,12 +72,19 @@ export default function TournamentsTab({
   const [clerk, setClerk] = useState("");
 
   // Duel (Vereinsvergleich) specific state
-  const [duelClubA, setDuelClubA] = useState("EC Trauchgau");
-  const [duelClubB, setDuelClubB] = useState("SV Prem");
+  const [duelClubA, setDuelClubA] = useState("");
+  const [duelClubB, setDuelClubB] = useState("");
   const [duelTeamsCountA, setDuelTeamsCountA] = useState(3);
   const [duelTeamsCountB, setDuelTeamsCountB] = useState(3);
   const [duelRoundsCount, setDuelRoundsCount] = useState(2);
   const [addTeamForClub, setAddTeamForClub] = useState<"A" | "B">("A");
+
+  // Inline team editing
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [editingTeamName, setEditingTeamName] = useState("");
+  const [editingDuelClubs, setEditingDuelClubs] = useState(false);
+  const [editClubAName, setEditClubAName] = useState("");
+  const [editClubBName, setEditClubBName] = useState("");
 
   // Caching sponsor logo state
   const [cachingSponsor, setCachingSponsor] = useState(false);
@@ -112,27 +122,27 @@ export default function TournamentsTab({
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalName = name.trim() || (type === "duell" ? `Vereinsvergleich: ${duelClubA} vs. ${duelClubB}` : "");
+    const clubA = duelClubA.trim() || "Mannschaft 1";
+    const clubB = duelClubB.trim() || "Mannschaft 2";
+    const finalName = name.trim() || (type === "duell" ? `Vereinsvergleich: ${clubA} vs. ${clubB}` : "Neues Turnier");
     if (!finalName) return;
 
     let initialTeams: Team[] = [];
     if (type === "duell") {
-      const clubA = duelClubA.trim() || "Mannschaft 1";
-      const clubB = duelClubB.trim() || "Mannschaft 2";
       for (let i = 1; i <= duelTeamsCountA; i++) {
         initialTeams.push({
           id: `team-a-${Date.now()}-${i}`,
-          name: `${clubA} ${i}`,
+          name: duelClubA.trim() ? `${clubA} ${i}` : `Mannschaft 1 - Team ${i}`,
           club: clubA,
-          group: clubA,
+          group: "A",
         });
       }
       for (let i = 1; i <= duelTeamsCountB; i++) {
         initialTeams.push({
           id: `team-b-${Date.now()}-${i}`,
-          name: `${clubB} ${i}`,
+          name: duelClubB.trim() ? `${clubB} ${i}` : `Mannschaft 2 - Team ${i}`,
           club: clubB,
-          group: clubB,
+          group: "B",
         });
       }
     }
@@ -155,8 +165,8 @@ export default function TournamentsTab({
       matches: [],
       targetParticipants: [],
       clubDuelConfig: type === "duell" ? {
-        clubAName: duelClubA.trim() || "Mannschaft 1",
-        clubBName: duelClubB.trim() || "Mannschaft 2",
+        clubAName: clubA,
+        clubBName: clubB,
         teamsCountA: duelTeamsCountA,
         teamsCountB: duelTeamsCountB,
         roundsCount: duelRoundsCount,
@@ -174,6 +184,12 @@ export default function TournamentsTab({
     setCompetitionLeader("");
     setReferee("");
     setClerk("");
+    setDuelClubA("");
+    setDuelClubB("");
+    setDuelTeamsCountA(3);
+    setDuelTeamsCountB(3);
+    setDuelRoundsCount(2);
+    setEditingTeamId(null);
     setShowCreateModal(false);
   };
 
@@ -194,11 +210,21 @@ export default function TournamentsTab({
 
     // 2-Club Duel Cross-Scheduler (Vereinsvergleich: z.B. Trauchgau vs. Prem)
     if (activeTournament.type === "duell") {
-      const clubAName = activeTournament.clubDuelConfig?.clubAName || teams[0]?.club || teams[0]?.group || "Mannschaft 1";
-      const clubBName = activeTournament.clubDuelConfig?.clubBName || teams.find(t => (t.club || t.group) !== clubAName)?.club || "Mannschaft 2";
+      const clubAName = activeTournament.clubDuelConfig?.clubAName || "Mannschaft 1";
+      const clubBName = activeTournament.clubDuelConfig?.clubBName || "Mannschaft 2";
 
-      const teamsA = teams.filter(t => (t.club === clubAName || t.group === clubAName || t.name.toLowerCase().includes(clubAName.toLowerCase())));
+      const teamsA = teams.filter(t => 
+        t.group === "A" || 
+        t.id.startsWith("team-a-") || 
+        t.club === clubAName || 
+        t.group === clubAName || 
+        (clubAName && t.name.toLowerCase().includes(clubAName.toLowerCase()))
+      );
       const teamsB = teams.filter(t => !teamsA.some(ta => ta.id === t.id));
+
+      // Sort teams deterministically by ID
+      teamsA.sort((a, b) => a.id.localeCompare(b.id));
+      teamsB.sort((a, b) => a.id.localeCompare(b.id));
 
       if (teamsA.length === 0 || teamsB.length === 0) {
         alert(`Für den Vereinsvergleich müssen Teams für beide Mannschaften (${clubAName} und ${clubBName}) vorhanden sein.`);
@@ -215,30 +241,48 @@ export default function TournamentsTab({
       let globalRound = 1;
 
       for (let d = 1; d <= roundsCount; d++) {
+        const isOddDurchgang = d % 2 === 1;
+
         for (let r = 0; r < K; r++) {
-          const roundPairings: { teamAId: string; teamBId: string }[] = [];
-          for (let i = 0; i < nA; i++) {
-            const j = (i + r) % K;
-            if (j < nB) {
-              if (d % 2 === 1) {
-                // Hinrunde / ungerader Durchgang: Team A hat Heimrecht
-                roundPairings.push({ teamAId: teamsA[i].id, teamBId: teamsB[j].id });
-              } else {
-                // Rückrunde / gerader Durchgang: Team B hat Heimrecht (Fairness)
-                roundPairings.push({ teamAId: teamsB[j].id, teamBId: teamsA[i].id });
+          const roundPairings: { teamAId: string; teamBId: string; laneIndex: number }[] = [];
+
+          if (isOddDurchgang) {
+            // Durchgang 1, 3, ...: Teams von Mannschaft 1 BLEIBEN auf ihren jeweiligen Bahnen!
+            // Team A_i bleibt auf Bahn (i + 1), gegnerische Teams von B rotieren durch
+            for (let i = 0; i < nA; i++) {
+              const j = (i + r) % K;
+              if (j < nB) {
+                roundPairings.push({
+                  teamAId: teamsA[i].id,
+                  teamBId: teamsB[j].id,
+                  laneIndex: (i % maxLanes) + 1,
+                });
+              }
+            }
+          } else {
+            // Durchgang 2, 4, ...: Teams von Mannschaft 2 BLEIBEN auf ihren jeweiligen Bahnen!
+            // Team B_j bleibt auf Bahn (j + 1) und hat Heimrecht (Fairness)
+            for (let j = 0; j < nB; j++) {
+              const i = (j + r) % K;
+              if (i < nA) {
+                roundPairings.push({
+                  teamAId: teamsB[j].id,
+                  teamBId: teamsA[i].id,
+                  laneIndex: (j % maxLanes) + 1,
+                });
               }
             }
           }
 
-          // Verteile die Begegnungen auf die Bahnen (maxLanes)
+          // Verteile Begegnungen auf Bahnen und Timeslots
           const numTimeslotsNeeded = Math.ceil(roundPairings.length / maxLanes);
           for (let slot = 0; slot < numTimeslotsNeeded; slot++) {
             const slotPairings = roundPairings.slice(slot * maxLanes, (slot + 1) * maxLanes);
-            slotPairings.forEach((pair, idx) => {
+            slotPairings.forEach((pair) => {
               matches.push({
                 id: `m-duel-d${d}-r${r + 1}-${matchCounter++}`,
                 round: globalRound,
-                court: `Bahn ${idx + 1}`,
+                court: `Bahn ${pair.laneIndex}`,
                 teamAId: pair.teamAId,
                 teamBId: pair.teamBId,
                 teamAScore: null,
@@ -526,6 +570,60 @@ export default function TournamentsTab({
       teams: updatedTeams,
       matches: updatedMatches,
     });
+  };
+
+  // Start editing team
+  const handleStartEditTeam = (team: Team) => {
+    setEditingTeamId(team.id);
+    setEditingTeamName(team.name);
+  };
+
+  // Save team name
+  const handleSaveTeamName = (teamId: string) => {
+    if (!activeTournament || !editingTeamName.trim()) {
+      setEditingTeamId(null);
+      return;
+    }
+    const updatedTeams = activeTournament.teams.map((t) =>
+      t.id === teamId ? { ...t, name: editingTeamName.trim() } : t
+    );
+    onUpdateTournament(activeTournament.id, { teams: updatedTeams });
+    setEditingTeamId(null);
+  };
+
+  // Save duel club names
+  const handleSaveDuelClubs = () => {
+    if (!activeTournament) return;
+    const currentConfig = activeTournament.clubDuelConfig || {
+      teamsCountA: 3,
+      teamsCountB: 3,
+      roundsCount: 2,
+      clubAName: "Mannschaft 1",
+      clubBName: "Mannschaft 2",
+    };
+    const newA = editClubAName.trim() || currentConfig.clubAName;
+    const newB = editClubBName.trim() || currentConfig.clubBName;
+
+    // Also update team.club names for consistency
+    const updatedTeams = activeTournament.teams.map((t) => {
+      if (t.group === "A" || t.id.startsWith("team-a-") || t.club === currentConfig.clubAName) {
+        return { ...t, club: newA };
+      }
+      if (t.group === "B" || t.id.startsWith("team-b-") || t.club === currentConfig.clubBName) {
+        return { ...t, club: newB };
+      }
+      return t;
+    });
+
+    onUpdateTournament(activeTournament.id, {
+      clubDuelConfig: {
+        ...currentConfig,
+        clubAName: newA,
+        clubBName: newB,
+      },
+      teams: updatedTeams,
+    });
+    setEditingDuelClubs(false);
   };
 
   // Add Target Participant
@@ -1010,8 +1108,10 @@ export default function TournamentsTab({
                     const duelStats = computeClubDuelStats(activeTournament);
                     const clubA = activeTournament.clubDuelConfig?.clubAName || "Mannschaft 1";
                     const clubB = activeTournament.clubDuelConfig?.clubBName || "Mannschaft 2";
-                    const teamsA = activeTournament.teams.filter(t => (t.club === clubA || t.group === clubA || t.name.toLowerCase().includes(clubA.toLowerCase())));
+                    const teamsA = activeTournament.teams.filter(t => (t.group === "A" || t.id.startsWith("team-a-") || t.club === clubA || t.group === clubA || (clubA && t.name.toLowerCase().includes(clubA.toLowerCase()))));
                     const teamsB = activeTournament.teams.filter(t => !teamsA.some(ta => ta.id === t.id));
+                    teamsA.sort((a, b) => a.id.localeCompare(b.id));
+                    teamsB.sort((a, b) => a.id.localeCompare(b.id));
 
                     return (
                       <>
@@ -1023,9 +1123,24 @@ export default function TournamentsTab({
                                 <Swords className="h-4 w-4" />
                               </span>
                               <div>
-                                <h4 className="font-extrabold text-sm uppercase tracking-wider text-white">
-                                  Vereinsvergleich: {clubA} vs. {clubB}
-                                </h4>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-extrabold text-sm uppercase tracking-wider text-white">
+                                    Vereinsvergleich: {clubA} vs. {clubB}
+                                  </h4>
+                                  {!isLocked && (
+                                    <button
+                                      onClick={() => {
+                                        setEditClubAName(clubA);
+                                        setEditClubBName(clubB);
+                                        setEditingDuelClubs(!editingDuelClubs);
+                                      }}
+                                      className="text-slate-400 hover:text-white p-1 rounded hover:bg-white/10 transition-colors cursor-pointer"
+                                      title="Vereinsnamen bearbeiten"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                </div>
                                 <p className="text-[10px] text-slate-400">
                                   {activeTournament.clubDuelConfig?.roundsCount || 2} Durchgänge • {activeTournament.maxCourts || 3} Bahnen • {activeTournament.kehrenCount || 6} Kehren
                                 </p>
@@ -1036,6 +1151,46 @@ export default function TournamentsTab({
                               {duelStats?.completedMatches || 0} von {duelStats?.totalMatches || activeTournament.matches.length} Spielen absolviert
                             </span>
                           </div>
+
+                          {/* Club Names Editor */}
+                          {editingDuelClubs && (
+                            <div className="bg-slate-900/90 border border-indigo-700/60 p-3 rounded-xl flex flex-wrap items-center gap-3 text-xs">
+                              <div className="flex items-center gap-1.5 flex-1 min-w-[180px]">
+                                <span className="text-[10px] text-indigo-300 font-bold uppercase shrink-0">Verein 1:</span>
+                                <input
+                                  type="text"
+                                  value={editClubAName}
+                                  onChange={(e) => setEditClubAName(e.target.value)}
+                                  className="bg-slate-800 border border-indigo-500/60 rounded px-2 py-1 text-white font-bold text-xs w-full focus:outline-none"
+                                  placeholder="Name Verein 1"
+                                />
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-1 min-w-[180px]">
+                                <span className="text-[10px] text-emerald-300 font-bold uppercase shrink-0">Verein 2:</span>
+                                <input
+                                  type="text"
+                                  value={editClubBName}
+                                  onChange={(e) => setEditClubBName(e.target.value)}
+                                  className="bg-slate-800 border border-emerald-500/60 rounded px-2 py-1 text-white font-bold text-xs w-full focus:outline-none"
+                                  placeholder="Name Verein 2"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={handleSaveDuelClubs}
+                                  className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-bold text-xs cursor-pointer flex items-center gap-1"
+                                >
+                                  <Check className="h-3.5 w-3.5" /> Speichern
+                                </button>
+                                <button
+                                  onClick={() => setEditingDuelClubs(false)}
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold text-xs cursor-pointer"
+                                >
+                                  Abbrechen
+                                </button>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Big Score Display */}
                           <div className="grid grid-cols-3 items-center gap-2 text-center py-2">
@@ -1103,26 +1258,80 @@ export default function TournamentsTab({
                               {teamsA.map((team, idx) => (
                                 <div
                                   key={team.id}
-                                  className="flex items-center justify-between rounded-lg border border-indigo-100 bg-white p-2 text-xs shadow-2xs"
+                                  className="flex items-center justify-between rounded-lg border border-indigo-100 bg-white p-2 text-xs shadow-2xs group hover:border-indigo-300 transition-colors"
                                 >
-                                  <div>
-                                    <p className="font-bold text-indigo-950">
-                                      {idx + 1}. {team.name}
-                                    </p>
-                                    {team.players && team.players.length > 0 && (
-                                      <p className="text-[10px] text-slate-400">
-                                        {team.players.join(", ")}
-                                      </p>
-                                    )}
-                                  </div>
-                                  {!isLocked && (
-                                    <button
-                                      onClick={() => handleDeleteTeam(team.id)}
-                                      className="p-1 text-slate-300 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                      title="Team löschen"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
+                                  {editingTeamId === team.id ? (
+                                    <div className="flex items-center gap-1.5 flex-1 pr-1">
+                                      <span className="font-bold text-indigo-900 shrink-0">{idx + 1}.</span>
+                                      <input
+                                        type="text"
+                                        value={editingTeamName}
+                                        onChange={(e) => setEditingTeamName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") handleSaveTeamName(team.id);
+                                          if (e.key === "Escape") setEditingTeamId(null);
+                                        }}
+                                        className="font-bold text-slate-900 border border-indigo-500 rounded px-2 py-0.5 text-xs bg-indigo-50/50 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-full"
+                                        placeholder="Teamname anpassen..."
+                                        autoFocus
+                                      />
+                                      <button
+                                        onClick={() => handleSaveTeamName(team.id)}
+                                        className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
+                                        title="Speichern (Enter)"
+                                      >
+                                        <Check className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingTeamId(null)}
+                                        className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                                        title="Abbrechen (Esc)"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="flex-1 pr-2 min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                          <p className="font-bold text-indigo-950 truncate">
+                                            {idx + 1}. {team.name}
+                                          </p>
+                                          {!isLocked && (
+                                            <button
+                                              onClick={() => handleStartEditTeam(team)}
+                                              className="text-slate-300 hover:text-indigo-600 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
+                                              title="Teamname anpassen"
+                                            >
+                                              <Pencil className="h-3 w-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                        {team.players && team.players.length > 0 && (
+                                          <p className="text-[10px] text-slate-400 truncate">
+                                            {team.players.join(", ")}
+                                          </p>
+                                        )}
+                                      </div>
+                                      {!isLocked && (
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <button
+                                            onClick={() => handleStartEditTeam(team)}
+                                            className="p-1 text-slate-400 hover:text-indigo-600 rounded transition-colors cursor-pointer sm:hidden"
+                                            title="Teamname anpassen"
+                                          >
+                                            <Pencil className="h-3.5 w-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={() => handleDeleteTeam(team.id)}
+                                            className="p-1 text-slate-300 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                            title="Team löschen"
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               ))}
@@ -1137,15 +1346,19 @@ export default function TournamentsTab({
                               <button
                                 onClick={() => {
                                   const nextIdx = teamsA.length + 1;
+                                  const newTeamId = "team-a-" + Date.now();
+                                  const defaultName = clubA ? `${clubA} ${nextIdx}` : `Team ${nextIdx}`;
                                   const newTeam: Team = {
-                                    id: "team-a-" + Date.now(),
-                                    name: `${clubA} ${nextIdx}`,
+                                    id: newTeamId,
+                                    name: defaultName,
                                     club: clubA,
-                                    group: clubA,
+                                    group: "A",
                                   };
                                   onUpdateTournament(activeTournament.id, {
                                     teams: [...activeTournament.teams, newTeam],
                                   });
+                                  setEditingTeamId(newTeamId);
+                                  setEditingTeamName(defaultName);
                                 }}
                                 className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-indigo-700 transition-colors cursor-pointer"
                               >
@@ -1169,26 +1382,80 @@ export default function TournamentsTab({
                               {teamsB.map((team, idx) => (
                                 <div
                                   key={team.id}
-                                  className="flex items-center justify-between rounded-lg border border-emerald-100 bg-white p-2 text-xs shadow-2xs"
+                                  className="flex items-center justify-between rounded-lg border border-emerald-100 bg-white p-2 text-xs shadow-2xs group hover:border-emerald-300 transition-colors"
                                 >
-                                  <div>
-                                    <p className="font-bold text-emerald-950">
-                                      {idx + 1}. {team.name}
-                                    </p>
-                                    {team.players && team.players.length > 0 && (
-                                      <p className="text-[10px] text-slate-400">
-                                        {team.players.join(", ")}
-                                      </p>
-                                    )}
-                                  </div>
-                                  {!isLocked && (
-                                    <button
-                                      onClick={() => handleDeleteTeam(team.id)}
-                                      className="p-1 text-slate-300 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                      title="Team löschen"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
+                                  {editingTeamId === team.id ? (
+                                    <div className="flex items-center gap-1.5 flex-1 pr-1">
+                                      <span className="font-bold text-emerald-900 shrink-0">{idx + 1}.</span>
+                                      <input
+                                        type="text"
+                                        value={editingTeamName}
+                                        onChange={(e) => setEditingTeamName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") handleSaveTeamName(team.id);
+                                          if (e.key === "Escape") setEditingTeamId(null);
+                                        }}
+                                        className="font-bold text-slate-900 border border-emerald-500 rounded px-2 py-0.5 text-xs bg-emerald-50/50 focus:outline-none focus:ring-1 focus:ring-emerald-500 w-full"
+                                        placeholder="Teamname anpassen..."
+                                        autoFocus
+                                      />
+                                      <button
+                                        onClick={() => handleSaveTeamName(team.id)}
+                                        className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
+                                        title="Speichern (Enter)"
+                                      >
+                                        <Check className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingTeamId(null)}
+                                        className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                                        title="Abbrechen (Esc)"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="flex-1 pr-2 min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                          <p className="font-bold text-emerald-950 truncate">
+                                            {idx + 1}. {team.name}
+                                          </p>
+                                          {!isLocked && (
+                                            <button
+                                              onClick={() => handleStartEditTeam(team)}
+                                              className="text-slate-300 hover:text-emerald-600 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
+                                              title="Teamname anpassen"
+                                            >
+                                              <Pencil className="h-3 w-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                        {team.players && team.players.length > 0 && (
+                                          <p className="text-[10px] text-slate-400 truncate">
+                                            {team.players.join(", ")}
+                                          </p>
+                                        )}
+                                      </div>
+                                      {!isLocked && (
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <button
+                                            onClick={() => handleStartEditTeam(team)}
+                                            className="p-1 text-slate-400 hover:text-emerald-600 rounded transition-colors cursor-pointer sm:hidden"
+                                            title="Teamname anpassen"
+                                          >
+                                            <Pencil className="h-3.5 w-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={() => handleDeleteTeam(team.id)}
+                                            className="p-1 text-slate-300 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                            title="Team löschen"
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               ))}
@@ -1203,15 +1470,19 @@ export default function TournamentsTab({
                               <button
                                 onClick={() => {
                                   const nextIdx = teamsB.length + 1;
+                                  const newTeamId = "team-b-" + Date.now();
+                                  const defaultName = clubB ? `${clubB} ${nextIdx}` : `Team ${nextIdx}`;
                                   const newTeam: Team = {
-                                    id: "team-b-" + Date.now(),
-                                    name: `${clubB} ${nextIdx}`,
+                                    id: newTeamId,
+                                    name: defaultName,
                                     club: clubB,
-                                    group: clubB,
+                                    group: "B",
                                   };
                                   onUpdateTournament(activeTournament.id, {
                                     teams: [...activeTournament.teams, newTeam],
                                   });
+                                  setEditingTeamId(newTeamId);
+                                  setEditingTeamName(defaultName);
                                 }}
                                 className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-emerald-700 transition-colors cursor-pointer"
                               >
@@ -1397,49 +1668,104 @@ export default function TournamentsTab({
                         {activeTournament.teams.map((team, idx) => (
                           <div
                             key={team.id}
-                            className="flex items-center justify-between rounded-lg border border-slate-100 bg-white p-2.5 text-xs hover:border-slate-200 transition-colors"
+                            className="flex items-center justify-between rounded-lg border border-slate-100 bg-white p-2.5 text-xs hover:border-slate-200 transition-colors group"
                           >
-                            <div className="space-y-0.5 flex-1 pr-2">
-                              <p className="font-bold text-slate-800">
-                                {idx + 1}. {team.name}
-                              </p>
-                              {team.players && team.players.length > 0 && (
-                                <p className="text-[10px] text-slate-400 line-clamp-1">
-                                  {team.players.join(", ")}
-                                </p>
-                              )}
-                              {activeTournament.isSpecialThreeLaneMode && (
-                                <div className="flex items-center gap-1.5 mt-1">
-                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${
-                                    team.group === "Gruppe B" ? "bg-purple-100 text-purple-700" : "bg-amber-100 text-amber-700"
-                                  }`}>
-                                    {team.group || "Gruppe A"}
-                                  </span>
-                                  <select
-                                    value={team.group || "Gruppe A"}
-                                    disabled={isLocked}
-                                    onChange={(e) => {
-                                      const updatedTeams = activeTournament.teams.map((t) =>
-                                        t.id === team.id ? { ...t, group: e.target.value } : t
-                                      );
-                                      onUpdateTournament(activeTournament.id, { teams: updatedTeams });
-                                    }}
-                                    className="text-[9px] border border-slate-200 rounded px-1 py-0.5 bg-slate-50 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
-                                  >
-                                    <option value="Gruppe A">Gruppe A</option>
-                                    <option value="Gruppe B">Gruppe B</option>
-                                  </select>
+                            {editingTeamId === team.id ? (
+                              <div className="flex items-center gap-1.5 flex-1 pr-1">
+                                <span className="font-bold text-slate-700 shrink-0">{idx + 1}.</span>
+                                <input
+                                  type="text"
+                                  value={editingTeamName}
+                                  onChange={(e) => setEditingTeamName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") handleSaveTeamName(team.id);
+                                    if (e.key === "Escape") setEditingTeamId(null);
+                                  }}
+                                  className="font-bold text-slate-900 border border-indigo-500 rounded px-2 py-0.5 text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-full"
+                                  placeholder="Teamname anpassen..."
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={() => handleSaveTeamName(team.id)}
+                                  className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
+                                  title="Speichern"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setEditingTeamId(null)}
+                                  className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                                  title="Abbrechen"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="space-y-0.5 flex-1 pr-2 min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="font-bold text-slate-800 truncate">
+                                      {idx + 1}. {team.name}
+                                    </p>
+                                    {!isLocked && (
+                                      <button
+                                        onClick={() => handleStartEditTeam(team)}
+                                        className="text-slate-300 hover:text-indigo-600 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
+                                        title="Teamname bearbeiten"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                  {team.players && team.players.length > 0 && (
+                                    <p className="text-[10px] text-slate-400 line-clamp-1">
+                                      {team.players.join(", ")}
+                                    </p>
+                                  )}
+                                  {activeTournament.isSpecialThreeLaneMode && (
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${
+                                        team.group === "Gruppe B" ? "bg-purple-100 text-purple-700" : "bg-amber-100 text-amber-700"
+                                      }`}>
+                                        {team.group || "Gruppe A"}
+                                      </span>
+                                      <select
+                                        value={team.group || "Gruppe A"}
+                                        disabled={isLocked}
+                                        onChange={(e) => {
+                                          const updatedTeams = activeTournament.teams.map((t) =>
+                                            t.id === team.id ? { ...t, group: e.target.value } : t
+                                          );
+                                          onUpdateTournament(activeTournament.id, { teams: updatedTeams });
+                                        }}
+                                        className="text-[9px] border border-slate-200 rounded px-1 py-0.5 bg-slate-50 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                                      >
+                                        <option value="Gruppe A">Gruppe A</option>
+                                        <option value="Gruppe B">Gruppe B</option>
+                                      </select>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
 
-                            {!isLocked && (
-                              <button
-                                onClick={() => handleDeleteTeam(team.id)}
-                                className="p-1 text-slate-400 hover:text-rose-500 rounded hover:bg-rose-50 transition-colors shrink-0"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                                {!isLocked && (
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      onClick={() => handleStartEditTeam(team)}
+                                      className="p-1 text-slate-400 hover:text-indigo-600 rounded transition-colors cursor-pointer sm:hidden"
+                                      title="Teamname bearbeiten"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteTeam(team.id)}
+                                      className="p-1 text-slate-400 hover:text-rose-500 rounded hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
+                                      title="Team löschen"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         ))}
@@ -1743,7 +2069,9 @@ export default function TournamentsTab({
                         const newType = e.target.value as TournamentType;
                         setType(newType);
                         if (newType === "duell" && (!name || name.trim() === "Neues Turnier")) {
-                          setName(`Vereinsvergleich: ${duelClubA} vs. ${duelClubB}`);
+                          const a = duelClubA.trim() || "Mannschaft 1";
+                          const b = duelClubB.trim() || "Mannschaft 2";
+                          setName(`Vereinsvergleich: ${a} vs. ${b}`);
                         }
                       }}
                       className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none bg-white font-semibold"
@@ -1776,8 +2104,8 @@ export default function TournamentsTab({
                       <span>Vereinsvergleich / Duell-Konfiguration</span>
                     </div>
                     <p className="text-[11px] text-slate-500 leading-relaxed">
-                      Zwei Mannschaften / Vereine (z.B. Trauchgau und Prem) mit je mehreren Teams spielen gegeneinander. 
-                      Keine internen Duelle – jedes Team spielt gegen alle gegnerischen Teams!
+                      Zwei Mannschaften / Vereine mit je mehreren Teams spielen gegeneinander. 
+                      Keine vereinsinternen Duelle – jedes Team spielt gegen alle gegnerischen Teams!
                     </p>
 
                     <div className="grid grid-cols-2 gap-3 pt-1">
@@ -1785,12 +2113,16 @@ export default function TournamentsTab({
                         <label className="block text-[10px] font-bold text-indigo-700 uppercase">Verein / Mannschaft 1</label>
                         <input
                           type="text"
-                          required
-                          placeholder="z.B. EC Trauchgau"
+                          placeholder="Name Mannschaft 1 (z. B. Verein A)"
                           value={duelClubA}
                           onChange={(e) => {
-                            setDuelClubA(e.target.value);
-                            setName(`Vereinsvergleich: ${e.target.value} vs. ${duelClubB}`);
+                            const val = e.target.value;
+                            setDuelClubA(val);
+                            if (!name || name.startsWith("Vereinsvergleich:")) {
+                              const a = val.trim() || "Mannschaft 1";
+                              const b = duelClubB.trim() || "Mannschaft 2";
+                              setName(`Vereinsvergleich: ${a} vs. ${b}`);
+                            }
                           }}
                           className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
                         />
@@ -1812,12 +2144,16 @@ export default function TournamentsTab({
                         <label className="block text-[10px] font-bold text-emerald-700 uppercase">Verein / Mannschaft 2</label>
                         <input
                           type="text"
-                          required
-                          placeholder="z.B. SV Prem"
+                          placeholder="Name Mannschaft 2 (z. B. Verein B)"
                           value={duelClubB}
                           onChange={(e) => {
-                            setDuelClubB(e.target.value);
-                            setName(`Vereinsvergleich: ${duelClubA} vs. ${e.target.value}`);
+                            const val = e.target.value;
+                            setDuelClubB(val);
+                            if (!name || name.startsWith("Vereinsvergleich:")) {
+                              const a = duelClubA.trim() || "Mannschaft 1";
+                              const b = val.trim() || "Mannschaft 2";
+                              setName(`Vereinsvergleich: ${a} vs. ${b}`);
+                            }
                           }}
                           className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
                         />
@@ -1862,6 +2198,12 @@ export default function TournamentsTab({
                           className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold focus:border-indigo-500 focus:outline-none"
                         />
                       </div>
+                    </div>
+
+                    {/* Fairness Hinweis */}
+                    <div className="p-2 rounded-lg bg-indigo-50/80 border border-indigo-100 text-[10px] text-indigo-900 leading-snug flex items-start gap-1.5">
+                      <span className="text-indigo-600 font-bold shrink-0">⚖️ Fairness-Regel:</span>
+                      <span>In Durchgang 1 bleiben die Teams von Mannschaft 1 fest auf ihren Bahnen. In Durchgang 2 bleiben die Teams von Mannschaft 2 fest auf ihren Bahnen.</span>
                     </div>
                   </div>
                 )}

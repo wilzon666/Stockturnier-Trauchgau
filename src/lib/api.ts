@@ -727,18 +727,18 @@ export function computeClubDuelStats(tournament: Tournament): ClubDuelStats | nu
   // Map each team to Club A or Club B
   const teamClubMap = new Map<string, 'A' | 'B'>();
   teams.forEach(t => {
-    const club = t.club || t.group;
-    if (club === clubAName) {
+    const club = t.club;
+    const group = t.group;
+    if (
+      group === 'A' ||
+      t.id.startsWith('team-a-') ||
+      club === clubAName ||
+      group === clubAName ||
+      (clubAName && t.name.toLowerCase().includes(clubAName.toLowerCase()))
+    ) {
       teamClubMap.set(t.id, 'A');
-    } else if (club === clubBName) {
-      teamClubMap.set(t.id, 'B');
     } else {
-      // Default: if name contains clubAName or index
-      if (t.name.toLowerCase().includes(clubAName!.toLowerCase())) {
-        teamClubMap.set(t.id, 'A');
-      } else {
-        teamClubMap.set(t.id, 'B');
-      }
+      teamClubMap.set(t.id, 'B');
     }
   });
 
